@@ -112,12 +112,23 @@
   function applyPermissions(role) {
     const pages = {
       admin: ["dashboard","candidates","employees","employee-archive","profile","onboarding","kpi","quality","tasks","reports","documents","control","settings"],
-      rh: ["dashboard","candidates","employees","employee-archive","profile","onboarding","quality","tasks","reports","documents","control"],
+      rh: ["dashboard","candidates","employees","employee-archive","profile","onboarding","quality","tasks","reports","documents"],
       chef_plateau: ["dashboard","employees","profile","onboarding","kpi","quality","tasks","reports"]
     };
-    const allowed = pages[role] || []; const uploadControls = document.querySelector(".doc-upload-controls"); if (uploadControls) uploadControls.hidden = !(role === "admin" || role === "rh");
+    let configured = null;
+    try { const saved = JSON.parse(localStorage.getItem("capsule_appPermissions") || "{}")?.moduleAccess?.[role]; if (Array.isArray(saved)) configured = saved; } catch {}
+    const allowed = role === "admin" ? pages.admin : (configured || pages[role] || []);
+    const uploadControls = document.querySelector(".doc-upload-controls"); if (uploadControls) uploadControls.hidden = !(role === "admin" || role === "rh");
     document.querySelectorAll("#nav [data-page]").forEach((button) => { button.hidden = !allowed.includes(button.dataset.page); });
+    document.querySelectorAll("[data-admin-only]").forEach((element) => { element.hidden = role !== "admin"; });
     window.crmCanPage = (page) => allowed.includes(page);
+    window.crmFirstAllowedPage = () => allowed[0] || "dashboard";
+    const activePage = document.querySelector(".screen.active")?.id.replace("screen-", "");
+    if (activePage && !allowed.includes(activePage)) {
+      const target = allowed[0] || "dashboard";
+      if (typeof window.crmGo === "function") window.crmGo(target);
+      else { document.querySelectorAll(".screen").forEach((screen) => { screen.classList.toggle("active", screen.id === "screen-" + target); }); }
+    }
   }
   window.crmCurrentRole = () => currentProfile?.role || "";
   window.crmCurrentProfile = () => currentProfile;
