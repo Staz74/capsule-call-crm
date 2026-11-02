@@ -24,5 +24,8 @@
 .assiduity-person-link{padding:0;border:0;background:none;color:var(--ink);font-size:11px;font-weight:750;text-align:left;cursor:pointer}
 .assiduity-person-link:hover{text-decoration:underline}
 .assiduity-muted{color:var(--muted);font-size:9px;margin-top:3px}
+.attendance-crm-card .attendance-kpi{background:linear-gradient(145deg,#2a2224,#211b1c)!important;border:1px solid #49383a!important;color:#f3ecea!important}
+.attendance-crm-card .attendance-kpi span{color:#c7b9b7!important}
+.attendance-crm-card .attendance-kpi b{color:#fbf8f7!important}
 @media(max-width:850px){.assiduity-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.assiduity-filter-people{grid-column:1/-1}}
 @media(max-width:700px){.topbar-left{gap:8px}.top-brand{gap:5px}.top-brand img{width:28px;height:28px}.top-brand b{font-size:10px}.header-user{max-width:105px}.header-user small{font-size:8px;gap:3px}.assiduity-filters{grid-template-columns:1fr}.assiduity-filter-people{grid-column:auto}}
