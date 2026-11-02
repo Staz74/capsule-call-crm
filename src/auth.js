@@ -179,7 +179,9 @@
     if (reload) { location.reload(); return true; }
     applyPermissions(profile.role);
     const badge = $("profileBadge"); if (badge) { badge.textContent = initial(profile.username); badge.title = "@" + profile.username + " · " + profile.role; }
-    const name = $("activeUserName"); if (name) name.textContent = "@" + profile.username + " · " + ({admin:"Admin",rh:"RH",chef_plateau:"Chef de plateau"}[profile.role] || profile.role);
+    const name = $("activeUserName"); if (name) name.textContent = "";
+    const sidebarName = $("sidebarAccountName"); if (sidebarName) sidebarName.textContent = profile.username;
+    const sidebarRole = $("sidebarAccountRole"); if (sidebarRole) sidebarRole.textContent = ({admin:"Administrateur",rh:"RH",chef_plateau:"Chef de plateau"}[profile.role] || profile.role);
     const headerName = $("headerUserName"); if (headerName) headerName.textContent = "@" + profile.username;
     const headerUsername = $("headerUsername"); if (headerUsername) headerUsername.textContent = "";
     const headerRole = $("headerUserRole"); if (headerRole) headerRole.textContent = ({admin:"Admin",rh:"RH",chef_plateau:"Chef de plateau"}[profile.role] || profile.role);
