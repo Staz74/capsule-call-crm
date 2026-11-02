@@ -114,6 +114,7 @@
       admin: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","synthesis","documents","control","settings"],
       rh: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","documents"],
       directeur_operationnel:["synthesis"],
+      imperator:["synthesis"],
       chef_plateau: ["dashboard","employees","profile","onboarding","performance","quality","tasks","reports"]
     };
     let configured = null;
@@ -144,6 +145,7 @@
           <option value="rh" ${user.role === "rh" ? "selected" : ""}>RH</option>
           <option value="chef_plateau" ${user.role === "chef_plateau" ? "selected" : ""}>Chef de plateau</option>
           <option value="directeur_operationnel" ${user.role === "directeur_operationnel" ? "selected" : ""}>Directeur opérationnel</option>
+          <option value="imperator" ${user.role === "imperator" ? "selected" : ""}>Imperator</option>
         </select></label>
         <label class="account-field"><span>Accès</span><select data-account-active><option value="true" ${user.is_active ? "selected" : ""}>Actif</option><option value="false" ${!user.is_active ? "selected" : ""}>Désactivé</option></select></label>
         <button class="btn account-save" type="button" data-save-account>Enregistrer</button>
@@ -183,10 +185,10 @@
     const badge = $("profileBadge"); if (badge) { badge.textContent = initial(profile.username); badge.title = "@" + profile.username + " · " + profile.role; }
     const name = $("activeUserName"); if (name) name.textContent = "";
     const sidebarName = $("sidebarAccountName"); if (sidebarName) sidebarName.textContent = profile.username;
-    const sidebarRole = $("sidebarAccountRole"); if (sidebarRole) sidebarRole.textContent = ({admin:"Administrateur",rh:"RH",chef_plateau:"Chef de plateau",directeur_operationnel:"Directeur opérationnel"}[profile.role] || profile.role);
+    const sidebarRole = $("sidebarAccountRole"); if (sidebarRole) sidebarRole.textContent = ({admin:"Administrateur",rh:"RH",chef_plateau:"Chef de plateau",directeur_operationnel:"Directeur opérationnel",imperator:"Imperator"}[profile.role] || profile.role);
     const headerName = $("headerUserName"); if (headerName) headerName.textContent = "@" + profile.username;
     const headerUsername = $("headerUsername"); if (headerUsername) headerUsername.textContent = "";
-    const headerRole = $("headerUserRole"); if (headerRole) headerRole.textContent = ({admin:"Admin",rh:"RH",chef_plateau:"Chef de plateau",directeur_operationnel:"Directeur opérationnel"}[profile.role] || profile.role);
+    const headerRole = $("headerUserRole"); if (headerRole) headerRole.textContent = ({admin:"Admin",rh:"RH",chef_plateau:"Chef de plateau",directeur_operationnel:"Directeur opérationnel",imperator:"Imperator"}[profile.role] || profile.role);
     const headerBadge = $("headerProfileBadge"); if (headerBadge) { headerBadge.textContent = initial(profile.username); headerBadge.title = "@" + profile.username + " · " + profile.role; }
     const gate = $("authGate"); if (gate) gate.hidden = true;
     if (profile.role === "admin") listAccounts().catch((e) => { console.error(e); showMessage("accountMessage", e.message, true); });

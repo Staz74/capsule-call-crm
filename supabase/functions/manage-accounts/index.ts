@@ -5,7 +5,7 @@ const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
 const userPattern = /^[a-z0-9][a-z0-9._-]{2,31}$/;
 const loginEmail = (username: string) => `${username}@login.capsule-call.invalid`;
-const roles = new Set(["rh", "chef_plateau", "directeur_operationnel"]);
+const roles = new Set(["rh", "chef_plateau", "directeur_operationnel", "imperator"]);
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
