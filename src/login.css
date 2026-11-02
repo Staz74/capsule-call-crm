@@ -1,0 +1,50 @@
+/* Connexion — composition Capsule Call × BrokerLink */
+.auth-gate{
+  position:fixed;inset:0;z-index:50;display:grid;place-items:center;overflow:auto;
+  padding:28px;background:
+    radial-gradient(ellipse at 17% 8%,#6b394622,transparent 38%),
+    radial-gradient(ellipse at 92% 90%,#d7a9b018,transparent 38%),#0c0b0d;
+  color:#f7f0ee;font-family:"Avenir Next","Segoe UI Variable","Segoe UI",sans-serif
+}
+.auth-gate::before,.auth-gate::after{content:none}
+.auth-gate[hidden]{display:none!important}
+.auth-shell{position:relative;isolation:isolate;width:min(1160px,100%);min-height:min(720px,calc(100svh - 56px));display:grid;grid-template-columns:minmax(0,1.08fr) minmax(380px,.82fr);overflow:hidden;border:1px solid #ffffff1c;border-radius:28px;background:#171315;box-shadow:0 35px 110px #0009}
+.auth-visual{position:relative;isolation:isolate;display:flex;flex-direction:column;justify-content:space-between;min-height:640px;overflow:hidden;padding:40px 44px;background:radial-gradient(ellipse at 40% 40%,#462b32 0%,#241a1e 48%,#151214 100%)}
+.auth-visual::before{content:"";position:absolute;z-index:-2;inset:7% -5% 10% -4%;background:url("../assets/kc-logo-transparent.png") center/contain no-repeat;opacity:.22;filter:drop-shadow(0 24px 45px #f1b9c52e)}
+.auth-visual::after{content:"";position:absolute;z-index:-1;inset:0;background:radial-gradient(circle at 22% 23%,#f5cbd012 0 2px,transparent 3px),radial-gradient(circle at 78% 31%,#f5cbd014 0 3px,transparent 4px),radial-gradient(circle at 70% 78%,#f5cbd010 0 2px,transparent 3px),linear-gradient(145deg,#120f1100 35%,#0c0a0b70);pointer-events:none}
+.auth-visual-top{display:flex;align-items:center;justify-content:space-between;gap:18px;color:#cdbbc0;font-size:9px;font-weight:750;letter-spacing:2px;text-transform:uppercase}
+.auth-live{display:inline-flex;align-items:center;gap:8px;color:#f4d7db;letter-spacing:1.2px}
+.auth-live::before{content:"";width:6px;height:6px;border-radius:50%;background:#dcaab3;box-shadow:0 0 12px #dcaab3}
+.auth-visual-copy{max-width:490px;margin:0 0 26px}
+.auth-kicker{margin-bottom:16px;color:#e4bac2;font-size:10px;font-weight:800;letter-spacing:2.3px;text-transform:uppercase}
+.auth-visual-copy h2{margin:0;color:#fff8f6;font-family:"Iowan Old Style","Palatino Linotype",Georgia,serif;font-size:clamp(38px,5vw,64px);font-weight:500;line-height:1.02;letter-spacing:-1.8px}
+.auth-visual-copy p{max-width:390px;margin:18px 0 0;color:#d1c1c2;font-size:13px;line-height:1.75}
+.auth-visual-footer{display:flex;align-items:center;gap:10px;color:#ad9da0;font-size:10px;letter-spacing:.5px}
+.auth-visual-footer img{width:22px;height:22px;object-fit:contain;opacity:.8;mix-blend-mode:screen}
+.auth-card{align-self:center;justify-self:center;width:min(440px,calc(100% - 56px));margin:38px 0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none}
+.auth-brand{margin:0 0 42px}
+.auth-collab-lockup{display:flex;align-items:center;gap:12px;min-height:56px}
+.auth-partner-logo{display:grid;place-items:center;flex:0 0 auto;height:49px;border-radius:14px}
+.auth-partner-logo.broker{width:88px;padding:8px 9px;background:#f6f3ee;border:1px solid #ffffff80;box-shadow:0 8px 25px #0003}
+.auth-partner-logo.broker img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply}
+.auth-partner-logo.capsule{width:44px;height:44px;border:1px solid #ffffff24;background:#ffffff0a}
+.auth-partner-logo.capsule img{width:35px;height:35px;object-fit:contain;mix-blend-mode:screen}
+.auth-collab-x{color:#ddb6bd;font-family:Georgia,serif;font-size:24px;font-weight:400}
+.auth-brand-name{color:#fbf5f3;font-family:"Iowan Old Style","Palatino Linotype",Georgia,serif;font-size:21px;font-weight:600;letter-spacing:-.3px;white-space:nowrap}
+.auth-brand small{display:block;margin:10px 0 0 164px;color:#bbaeb0;font-size:9px;font-weight:750;letter-spacing:2px;text-transform:uppercase}
+.auth-card h1{margin:0 0 9px;color:#fff8f6;font-family:"Iowan Old Style","Palatino Linotype",Georgia,serif;font-size:34px;font-weight:500;letter-spacing:-.8px}
+.auth-intro,.account-notice{margin:0 0 28px;color:#bdb0b1;font-size:12px;line-height:1.65}
+.auth-card form{display:grid;gap:17px}
+.auth-card .field{gap:8px}
+.auth-card .field label{color:#d7c9ca;font-size:10px;font-weight:700;letter-spacing:.4px}
+.auth-card .field input,.auth-card .field select,.auth-card .field textarea{padding:13px 14px;border:1px solid #564749;border-radius:11px;outline:none;background:#211b1d;color:#fff8f6;font-family:inherit;font-size:12px;transition:border-color .16s,box-shadow .16s}
+.auth-card .field input::placeholder{color:#827679}
+.auth-card .field input:focus,.auth-card .field select:focus,.auth-card .field textarea:focus{border-color:#d6a9b1;box-shadow:0 0 0 3px #d6a9b11a}
+.auth-wide{width:100%;min-height:47px;margin-top:6px;border:1px solid #ebc9ce;border-radius:11px;background:linear-gradient(135deg,#f0d4d7,#d7a9b0);color:#231b1d;font-family:inherit;font-size:11px;font-weight:800;letter-spacing:.15px;box-shadow:0 12px 28px #d7a9b01c}
+.auth-wide:hover{filter:brightness(1.04);transform:translateY(-1px)}
+.auth-link{margin-top:18px;padding:7px 0;border:0;background:transparent;color:#dcb8bf;font-family:inherit;font-size:11px;text-align:left;cursor:pointer}
+.auth-link:hover{color:#fff;text-decoration:underline}
+.auth-message{min-height:16px;margin:0;color:#f0aeb5;font-size:11px;line-height:1.5}
+.auth-message.auth-success{color:#a7d4bc}
+@media(max-width:900px){.auth-shell{width:min(640px,100%);min-height:auto;grid-template-columns:1fr}.auth-visual{min-height:290px;padding:27px 30px 24px}.auth-visual::before{inset:-16% 1% -20% 8%;background-position:center 54%;opacity:.16}.auth-visual-copy{max-width:440px;margin:45px 0 25px}.auth-visual-copy h2{font-size:42px}.auth-visual-copy p{margin-top:10px}.auth-visual-footer{display:none}.auth-card{width:min(440px,calc(100% - 60px));margin:35px auto 42px}.auth-brand{margin-bottom:30px}}
+@media(max-width:520px){.auth-gate{padding:0;place-items:stretch}.auth-shell{width:100%;min-height:100svh;grid-template-rows:auto 1fr;border:0;border-radius:0}.auth-visual{min-height:245px;padding:22px 21px 18px}.auth-visual-top{font-size:8px;letter-spacing:1.4px}.auth-live{letter-spacing:.8px}.auth-visual-copy{margin:40px 0 3px}.auth-visual-copy h2{font-size:36px}.auth-visual-copy p{font-size:11px;margin-top:8px}.auth-card{align-self:start;width:calc(100% - 42px);margin:29px auto 35px}.auth-brand{margin-bottom:28px}.auth-collab-lockup{gap:9px}.auth-partner-logo.broker{width:76px;height:43px}.auth-partner-logo.capsule{width:40px;height:40px}.auth-partner-logo.capsule img{width:31px;height:31px}.auth-brand-name{font-size:18px}.auth-brand small{margin-left:142px;font-size:8px}.auth-card h1{font-size:30px}}
