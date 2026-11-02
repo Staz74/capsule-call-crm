@@ -111,13 +111,13 @@
 
   function applyPermissions(role) {
     const pages = {
-      admin: ["dashboard","candidates","employees","employee-archive","profile","onboarding","kpi","assiduity","quality","tasks","reports","documents","control","settings"],
-      rh: ["dashboard","candidates","employees","employee-archive","profile","onboarding","assiduity","quality","tasks","reports","documents"],
-      chef_plateau: ["dashboard","employees","profile","onboarding","kpi","assiduity","quality","tasks","reports"]
+      admin: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","documents","control","settings"],
+      rh: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","documents"],
+      chef_plateau: ["dashboard","employees","profile","onboarding","performance","quality","tasks","reports"]
     };
     let configured = null;
     try { const saved = JSON.parse(localStorage.getItem("capsule_appPermissions") || "{}")?.moduleAccess?.[role]; if (Array.isArray(saved)) configured = saved; } catch {}
-    const allowed = role === "admin" ? pages.admin : (configured || pages[role] || []);
+    const requested = configured || pages[role] || []; const allowed = role === "admin" ? pages.admin : [...new Set(requested.map((page) => page === "kpi" || page === "assiduity" ? "performance" : page))];
     const uploadControls = document.querySelector(".doc-upload-controls"); if (uploadControls) uploadControls.hidden = !(role === "admin" || role === "rh");
     document.querySelectorAll("#nav [data-page]").forEach((button) => { button.hidden = !allowed.includes(button.dataset.page); });
     document.querySelectorAll("[data-admin-only]").forEach((element) => { element.hidden = role !== "admin"; });
