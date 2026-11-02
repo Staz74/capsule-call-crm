@@ -111,9 +111,9 @@
 
   function applyPermissions(role) {
     const pages = {
-      admin: ["dashboard","candidates","employees","employee-archive","profile","onboarding","kpi","quality","tasks","reports","documents","control","settings"],
-      rh: ["dashboard","candidates","employees","employee-archive","profile","onboarding","quality","tasks","reports","documents"],
-      chef_plateau: ["dashboard","employees","profile","onboarding","kpi","quality","tasks","reports"]
+      admin: ["dashboard","candidates","employees","employee-archive","profile","onboarding","kpi","assiduity","quality","tasks","reports","documents","control","settings"],
+      rh: ["dashboard","candidates","employees","employee-archive","profile","onboarding","assiduity","quality","tasks","reports","documents"],
+      chef_plateau: ["dashboard","employees","profile","onboarding","kpi","assiduity","quality","tasks","reports"]
     };
     let configured = null;
     try { const saved = JSON.parse(localStorage.getItem("capsule_appPermissions") || "{}")?.moduleAccess?.[role]; if (Array.isArray(saved)) configured = saved; } catch {}
@@ -180,6 +180,10 @@
     applyPermissions(profile.role);
     const badge = $("profileBadge"); if (badge) { badge.textContent = initial(profile.display_name); badge.title = profile.display_name + " · " + profile.role; }
     const name = $("activeUserName"); if (name) name.textContent = profile.display_name + " · " + ({admin:"Admin",rh:"RH",chef_plateau:"Chef de plateau"}[profile.role] || profile.role);
+    const headerName = $("headerUserName"); if (headerName) headerName.textContent = profile.display_name;
+    const headerUsername = $("headerUsername"); if (headerUsername) headerUsername.textContent = "@" + profile.username;
+    const headerRole = $("headerUserRole"); if (headerRole) headerRole.textContent = ({admin:"Admin",rh:"RH",chef_plateau:"Chef de plateau"}[profile.role] || profile.role);
+    const headerBadge = $("headerProfileBadge"); if (headerBadge) { headerBadge.textContent = initial(profile.display_name); headerBadge.title = profile.display_name + " · @" + profile.username; }
     const gate = $("authGate"); if (gate) gate.hidden = true;
     if (profile.role === "admin") listAccounts().catch((e) => { console.error(e); showMessage("accountMessage", e.message, true); });
     return true;
