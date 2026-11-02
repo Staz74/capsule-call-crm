@@ -111,7 +111,7 @@
 
   function applyPermissions(role) {
     const pages = {
-      admin: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","documents","control","settings"],
+      admin: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","synthesis","documents","control","settings"],
       rh: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","documents"],
       directeur_operationnel:["synthesis"],
       chef_plateau: ["dashboard","employees","profile","onboarding","performance","quality","tasks","reports"]
