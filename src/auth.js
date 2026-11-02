@@ -5,7 +5,7 @@
   let currentUser = null, currentProfile = null, cloudReady = false, bootstrapCodeVisible = false;
   const queues = new Map(), cloudBase = new Map();
   const $ = (id) => document.getElementById(id);
-  const dataKeys = ["employees","candidates","archivedEmployees","archivedCandidates","appPermissions","tasks","taskHistory","qualityHistory","coachingHistory","onboardingHistory","attendanceHistory","reports","meetings","docs","kpiRows","controlRules"];
+  const dataKeys = ["employees","candidates","archivedEmployees","archivedCandidates","appPermissions","tasks","taskHistory","qualityHistory","coachingHistory","synthesisActions","onboardingHistory","attendanceHistory","reports","meetings","docs","kpiRows","controlRules"];
   const storedOriginal = Storage.prototype.setItem;
   const removedOriginal = Storage.prototype.removeItem;
   const scopedKey = (key) => key.startsWith("capsule_") ? key.slice(8) : (key.startsWith("cc_onboarding_steps_") || key.startsWith("cc_attendance_")) ? "local:" + key : null;
@@ -113,6 +113,7 @@
     const pages = {
       admin: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","documents","control","settings"],
       rh: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","documents"],
+      directeur_operationnel:["synthesis"],
       chef_plateau: ["dashboard","employees","profile","onboarding","performance","quality","tasks","reports"]
     };
     let configured = null;
@@ -142,11 +143,12 @@
         <label class="account-field"><span>Rôle</span><select data-account-role>
           <option value="rh" ${user.role === "rh" ? "selected" : ""}>RH</option>
           <option value="chef_plateau" ${user.role === "chef_plateau" ? "selected" : ""}>Chef de plateau</option>
+          <option value="directeur_operationnel" ${user.role === "directeur_operationnel" ? "selected" : ""}>Directeur opérationnel</option>
         </select></label>
         <label class="account-field"><span>Accès</span><select data-account-active><option value="true" ${user.is_active ? "selected" : ""}>Actif</option><option value="false" ${!user.is_active ? "selected" : ""}>Désactivé</option></select></label>
         <button class="btn account-save" type="button" data-save-account>Enregistrer</button>
         <button class="btn account-save" type="button" data-change-account-password>Changer le mot de passe</button>
-      </div>`).join("") : '<div class="empty"><b>Aucun accès créé</b>Ajoute un accès RH ou chef de plateau ci-dessus.</div>';
+      </div>`).join("") : '<div class="empty"><b>Aucun accès créé</b>Ajoute un accès RH, chef de plateau ou directeur opérationnel ci-dessus.</div>';
   }
   async function listAccounts() {
     const { data, error } = await client.functions.invoke("manage-accounts", { body: { action:"list" } });
@@ -181,10 +183,10 @@
     const badge = $("profileBadge"); if (badge) { badge.textContent = initial(profile.username); badge.title = "@" + profile.username + " · " + profile.role; }
     const name = $("activeUserName"); if (name) name.textContent = "";
     const sidebarName = $("sidebarAccountName"); if (sidebarName) sidebarName.textContent = profile.username;
-    const sidebarRole = $("sidebarAccountRole"); if (sidebarRole) sidebarRole.textContent = ({admin:"Administrateur",rh:"RH",chef_plateau:"Chef de plateau"}[profile.role] || profile.role);
+    const sidebarRole = $("sidebarAccountRole"); if (sidebarRole) sidebarRole.textContent = ({admin:"Administrateur",rh:"RH",chef_plateau:"Chef de plateau",directeur_operationnel:"Directeur opérationnel"}[profile.role] || profile.role);
     const headerName = $("headerUserName"); if (headerName) headerName.textContent = "@" + profile.username;
     const headerUsername = $("headerUsername"); if (headerUsername) headerUsername.textContent = "";
-    const headerRole = $("headerUserRole"); if (headerRole) headerRole.textContent = ({admin:"Admin",rh:"RH",chef_plateau:"Chef de plateau"}[profile.role] || profile.role);
+    const headerRole = $("headerUserRole"); if (headerRole) headerRole.textContent = ({admin:"Admin",rh:"RH",chef_plateau:"Chef de plateau",directeur_operationnel:"Directeur opérationnel"}[profile.role] || profile.role);
     const headerBadge = $("headerProfileBadge"); if (headerBadge) { headerBadge.textContent = initial(profile.username); headerBadge.title = "@" + profile.username + " · " + profile.role; }
     const gate = $("authGate"); if (gate) gate.hidden = true;
     if (profile.role === "admin") listAccounts().catch((e) => { console.error(e); showMessage("accountMessage", e.message, true); });

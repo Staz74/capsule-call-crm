@@ -1,0 +1,46 @@
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const colors = { urgent:"À traiter", followup:"À suivre", strength:"Point fort", done:"Traité" };
+  let selected = null;
+  const state = () => window.crmGetLocalState?.() || {};
+  const persist = (key, value) => localStorage.setItem("capsule_" + key, JSON.stringify(value));
+  const dateLabel = (date) => { if (!date) return "Date non renseignée"; const d=new Date(date+"T00:00:00"); return Number.isNaN(d.getTime())?String(date):new Intl.DateTimeFormat("fr-FR").format(d); };
+  function peopleList(data) {
+    const host=$("synthesisPeople"); if(!host)return;
+    const employees=(data.employees||[]).filter(e=>!e.archivedAt);
+    host.innerHTML=employees.length?employees.map(e=>{const checked=selected===null||selected.includes(e.name);return '<label class="synthesis-person"><input type="checkbox" data-synthesis-person value="'+esc(e.name)+'" '+(checked?'checked':'')+'><span>'+esc(e.name)+'</span></label>'}).join(""):'<div class="empty">Aucun collaborateur dans le CRM.</div>';
+  }
+  function selectedNames(data){return selected===null?(data.employees||[]).filter(e=>!e.archivedAt).map(e=>e.name):selected;}
+  function buildItems(data) {
+    const names=selectedNames(data), all=selected===null;
+    const from=$("synthesisDateFrom")?.value||"", to=$("synthesisDateTo")?.value||"";
+    const inRange=x=>{const d=String(x.date||"").slice(0,10);return (!from||d>=from)&&(!to||d<=to)};
+    const items=[];
+    (data.qualityHistory||[]).forEach((x,i)=>{if(names.includes(x.employee)&&inRange(x))items.push({key:'quality:'+String(x.id??i),source:"Écoute qualité",date:x.date,employee:x.employee,title:(x.category||"Écoute")+" · "+(x.score??"—")+"/100",text:x.notes||"Aucune observation saisie.",meta:"Évaluateur : "+(x.evaluator||"—")+(x.coach?" · Suivi : "+x.coach:"")});});
+    (data.coachingHistory||[]).forEach((x,i)=>{if(names.includes(x.employee)&&inRange(x))items.push({key:'coaching:'+String(x.id??i),source:"Coaching",date:x.date,employee:x.employee,title:x.category||"Séance de coaching",text:[x.objective&&"Objectif : "+x.objective,x.content&&"Contenu : "+x.content,x.result&&"Résultat : "+x.result].filter(Boolean).join("\n")||"Aucun détail saisi." ,meta:"Coach : "+(x.coach||"—")});});
+    (data.taskHistory||[]).forEach((x,i)=>{if((names.includes(x.employee)||names.includes(x.owner))&&inRange(x))items.push({key:'task:'+String(x.id??i),source:"Tâche / action",date:x.date||x.completedAt?.slice(0,10),employee:x.employee||x.owner||"Équipe",title:x.title||x.taskTitle||x.sourceLabel||"Action terminée",text:[x.details,x.notes,x.result,x.description].filter(Boolean).join("\n")||"Action enregistrée dans l’historique.",meta:"Statut : "+(x.status||"Terminée")});});
+    const addReports=(rows,source)=>rows.forEach((x,i)=>{const searchable=JSON.stringify(x).toLocaleLowerCase("fr");const matched=names.filter(n=>searchable.includes(String(n).toLocaleLowerCase("fr")));if((all||matched.length)&&inRange(x)){const parts=[x.summary,x.issues&&"Points abordés : "+x.issues,x.actions&&"Actions : "+x.actions,x.decisions&&"Décisions : "+x.decisions].filter(Boolean);items.push({key:source+':'+String(x.id??i),source:x.kind||source,date:x.date,employee:matched.join(", ")||"Équipe",title:x.title||x.kind||"Compte rendu",text:parts.join("\n")||x.notes||"Aucun résumé saisi.",meta:"Rédigé par : "+(x.owner||"—")});}});
+    addReports(data.reports||[],"Rapport / réunion"); addReports(data.meetings||[],"Meeting");
+    return items.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  }
+  function render() {
+    const data=state(); peopleList(data); const items=buildItems(data), actions=data.synthesisActions||[];
+    const byKey=new Map(actions.map(x=>[x.key,x]));
+    const filter=$("synthesisColorFilter")?.value||"all";
+    const visible=items.filter(item=>filter==="all"||(byKey.get(item.key)?.color||"")===filter);
+    $("synthesisSummary").innerHTML='<div class="synthesis-stat"><b>'+items.length+'</b><span>points recensés</span></div><div class="synthesis-stat"><b>'+items.filter(x=>x.source==="Écoute qualité").length+'</b><span>écoutes</span></div><div class="synthesis-stat"><b>'+items.filter(x=>x.source==="Coaching").length+'</b><span>coachings</span></div><div class="synthesis-stat"><b>'+items.filter(x=>x.source.includes("Rapport")||x.source==="Meeting").length+'</b><span>comptes rendus</span></div>';
+    const list=$("synthesisList"); if(!list)return;
+    list.innerHTML=visible.length?visible.map(item=>{const action=byKey.get(item.key)||{};const color=action.color||"";return '<article class="panel synthesis-card '+(color?'tag-'+color:'')+'"><div class="synthesis-card-head"><div><span class="synthesis-source">'+esc(item.source)+'</span><h2>'+esc(item.title)+'</h2><div class="synthesis-meta">'+esc(item.employee)+' · '+esc(dateLabel(item.date))+' · '+esc(item.meta)+'</div></div><label class="synthesis-color"><span>Classer</span><select data-synthesis-color="'+esc(item.key)+'"><option value="">Sans couleur</option><option value="urgent" '+(color==='urgent'?'selected':'')+'>À traiter</option><option value="followup" '+(color==='followup'?'selected':'')+'>À suivre</option><option value="strength" '+(color==='strength'?'selected':'')+'>Point fort</option><option value="done" '+(color==='done'?'selected':'')+'>Traité</option></select></label></div><p class="synthesis-text">'+esc(item.text).replace(/\n/g,'<br>')+'</p><form class="synthesis-meeting-form" data-synthesis-meeting="'+esc(item.key)+'"><label>Date du meeting<input type="date" name="date" required value="'+esc(action.meetingDate||"")+'"></label><label>Point à traiter en réunion<input name="summary" required maxlength="500" placeholder="Ex. travailler la découverte du besoin" value="'+esc(action.meetingSummary||"")+'"></label><button class="btn primary" type="submit">'+(action.meetingId?'Mettre à jour le meeting':'Planifier le meeting')+'</button>'+(action.meetingDate?'<span class="synthesis-planned">Prévu le '+esc(dateLabel(action.meetingDate))+'</span>':'')+'</form></article>';}).join(""):'<div class="empty"><b>Aucun point pour cette sélection</b>Les écoutes, coachings, actions et comptes rendus correspondants apparaîtront ici.</div>';
+    const meetings=(data.meetings||[]).filter(x=>x.synthesisSource||x.synthesisActionKey).sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
+    $("synthesisMeetings").innerHTML=meetings.length?'<div class="synthesis-meeting-list">'+meetings.map(m=>'<div class="synthesis-meeting-row"><b>'+esc(m.date?dateLabel(m.date):"Date à définir")+'</b><span>'+esc(m.employee||"Équipe")+'</span><span>'+esc(m.summary||m.title||"Meeting")+'</span><small>'+esc(m.owner||"")+'</small></div>').join("")+'</div>':'<div class="empty">Aucun meeting planifié depuis une synthèse.</div>';
+  }
+  window.crmRenderSynthesis=render;
+  document.addEventListener("change",e=>{
+    const input=e.target.closest("[data-synthesis-person]"); if(input){const data=state(),all=(data.employees||[]).filter(x=>!x.archivedAt).map(x=>x.name);if(selected===null)selected=all.filter(n=>n!==input.value);else if(input.checked)selected=[...new Set([...selected,input.value])];else selected=selected.filter(n=>n!==input.value);render();return;}
+    const color=e.target.closest("[data-synthesis-color]"); if(color){const data=state(),arr=data.synthesisActions||[],key=color.dataset.synthesisColor,idx=arr.findIndex(x=>x.key===key);if(!color.value){if(idx>=0)arr.splice(idx,1);}else if(idx>=0)arr[idx]={...arr[idx],color:color.value,updatedAt:new Date().toISOString()};else arr.push({key,color:color.value,updatedAt:new Date().toISOString()});persist("synthesisActions",arr);render();return;}
+    if(e.target.id==="synthesisColorFilter"||e.target.id==="synthesisDateFrom"||e.target.id==="synthesisDateTo")render();
+  });
+  $("synthesisSelectAll")?.addEventListener("click",()=>{selected=null;render();});
+  document.addEventListener("submit",e=>{const form=e.target.closest("[data-synthesis-meeting]");if(!form)return;e.preventDefault();const data=state(),fd=new FormData(form),key=form.dataset.synthesisMeeting,date=String(fd.get("date")||""),summary=String(fd.get("summary")||"").trim();if(!date||!summary)return;const actions=data.synthesisActions||[];let action=actions.find(x=>x.key===key);if(!action){action={key,color:"",createdAt:new Date().toISOString()};actions.push(action);}const meetings=data.meetings||[];let meeting=meetings.find(x=>x.id===action.meetingId);if(!meeting){meeting={id:Date.now(),kind:"Meeting opérationnel",synthesisSource:key,createdAt:new Date().toISOString()};meetings.unshift(meeting);}const card=form.closest(".synthesis-card"),employee=card?.querySelector(".synthesis-meta")?.textContent?.split(" · ")[0]||"Équipe";Object.assign(meeting,{date,employee,summary,title:"Meeting de suivi · "+employee,owner:window.crmCurrentProfile?.()?.username||"",synthesisActionKey:key});Object.assign(action,{meetingId:meeting.id,meetingDate:date,meetingSummary:summary,updatedAt:new Date().toISOString()});persist("meetings",meetings);persist("synthesisActions",actions);render();window.crmToast?.("Meeting planifié et enregistré.");});
+})();
