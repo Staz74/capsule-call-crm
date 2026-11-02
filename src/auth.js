@@ -5,7 +5,7 @@
   let currentUser = null, currentProfile = null, cloudReady = false, bootstrapCodeVisible = false;
   const queues = new Map(), cloudBase = new Map();
   const $ = (id) => document.getElementById(id);
-  const dataKeys = ["employees","candidates","archivedEmployees","appPermissions","tasks","taskHistory","qualityHistory","coachingHistory","onboardingHistory","attendanceHistory","reports","meetings","docs","kpiRows","controlRules"];
+  const dataKeys = ["employees","candidates","archivedEmployees","archivedCandidates","appPermissions","tasks","taskHistory","qualityHistory","coachingHistory","onboardingHistory","attendanceHistory","reports","meetings","docs","kpiRows","controlRules"];
   const storedOriginal = Storage.prototype.setItem;
   const removedOriginal = Storage.prototype.removeItem;
   const scopedKey = (key) => key.startsWith("capsule_") ? key.slice(8) : (key.startsWith("cc_onboarding_steps_") || key.startsWith("cc_attendance_")) ? "local:" + key : null;
@@ -248,7 +248,9 @@
       }
       location.reload();
     });
-    $("logoutBtn")?.addEventListener("click", async () => { cloudReady = false; await client.auth.signOut(); currentUser = currentProfile = null; location.reload(); });
+    const logout = async () => { cloudReady = false; await client.auth.signOut(); currentUser = currentProfile = null; location.reload(); };
+    $("logoutBtn")?.addEventListener("click", logout);
+    $("headerLogoutBtn")?.addEventListener("click", logout);
     $("changeOwnPassword")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const password = $("ownPassword").value;
@@ -284,6 +286,5 @@
     if (session) await activate(session);
   });
 })();
-
 
 
