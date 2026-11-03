@@ -23,9 +23,29 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data: profile, error: profileError } = await admin.from("crm_profiles").select("role,is_active").eq("id", user.id).maybeSingle();
     if (profileError) throw profileError;
-    if (!profile || !profile.is_active || profile.role !== "admin" || user.app_metadata?.role !== "admin") return json({ error: "Réservé à l’administrateur." }, 403);
+    if (!profile || !profile.is_active || profile.role !== user.app_metadata?.role) return json({ error: "Session invalide. Reconnecte-toi." }, 403);
 
     const body = await req.json();
+    if (body.action === "update-self") {
+      const username = String(body.username || "").trim().toLowerCase();
+      const displayName = String(body.displayName || "").trim();
+      if (!userPattern.test(username) || displayName.length < 2 || displayName.length > 100) return json({ error: "Vérifie le nom affiché et l’identifiant (3 à 32 caractères)." }, 400);
+      const { data: duplicate, error: duplicateError } = await admin.from("crm_profiles").select("id").eq("username", username).neq("id", user.id).maybeSingle();
+      if (duplicateError) throw duplicateError;
+      if (duplicate) return json({ error: "Cet identifiant est déjà utilisé. Choisis-en un autre." }, 409);
+      const nextEmail = loginEmail(username);
+      if (user.email !== nextEmail) {
+        const { error: authUpdateError } = await admin.auth.admin.updateUserById(user.id, { email: nextEmail, email_confirm: true });
+        if (authUpdateError) return json({ error: "Cet identifiant est déjà utilisé ou ne peut pas être appliqué." }, 409);
+      }
+      const { data: updated, error: updateError } = await admin.from("crm_profiles").update({ username, display_name: displayName, updated_at: new Date().toISOString() }).eq("id", user.id).select("id,username,display_name,role,is_active").single();
+      if (updateError) {
+        if (user.email && user.email !== nextEmail) await admin.auth.admin.updateUserById(user.id, { email: user.email, email_confirm: true });
+        throw updateError;
+      }
+      return json({ updated: true, profile: updated });
+    }
+    if (profile.role !== "admin" || user.app_metadata?.role !== "admin") return json({ error: "Réservé à l’administrateur." }, 403);
     if (body.action === "list") {
       const { data, error } = await admin.from("crm_profiles").select("id,username,display_name,role,is_active,created_at").neq("role", "admin").order("display_name");
       if (error) throw error;

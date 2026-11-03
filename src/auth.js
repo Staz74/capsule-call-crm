@@ -175,6 +175,10 @@
       return false;
     }
     currentUser = user; currentProfile = profile;
+    const displayNameField = $("ownDisplayName"); if (displayNameField) displayNameField.value = profile.display_name || "";
+    const usernameField = $("ownUsername"); if (usernameField) usernameField.value = profile.username || "";
+    const dashboardGreeting = document.querySelector("#screen-dashboard .head h1"), firstName = String(profile.display_name || profile.username || "").trim().split(/\s+/)[0];
+    if (dashboardGreeting) dashboardGreeting.textContent = firstName ? "Bonjour " + firstName : "Bonjour";
     try { await syncState(); } catch (error) {
       console.error("CRM sync:", error); setSync("Erreur de synchronisation", true);
       showMessage("loginMessage", "Connexion réussie, mais le chargement de la base a échoué : " + (error.message || "vérifie la connexion au projet."));
@@ -272,6 +276,24 @@
     const logout = async () => { cloudReady = false; await client.auth.signOut(); currentUser = currentProfile = null; location.reload(); };
     $("logoutBtn")?.addEventListener("click", logout);
     $("headerLogoutBtn")?.addEventListener("click", logout);
+    $("changeOwnProfile")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const username = $("ownUsername").value.trim().toLowerCase(), displayName = $("ownDisplayName").value.trim();
+      showMessage("profileMessage", "Mise \u00e0 jour du profil...", false);
+      try {
+        const result = await invokeAdmin({ action:"update-self", username, displayName });
+        currentProfile = result.profile;
+        $("ownDisplayName").value = result.profile.display_name;
+        $("ownUsername").value = result.profile.username;
+        const firstName = String(result.profile.display_name || result.profile.username).trim().split(/\s+/)[0];
+        const greeting = document.querySelector("#screen-dashboard .head h1"); if (greeting) greeting.textContent = firstName ? "Bonjour " + firstName : "Bonjour";
+        const sidebarName = $("sidebarAccountName"); if (sidebarName) sidebarName.textContent = result.profile.username;
+        const headerName = $("headerUserName"); if (headerName) headerName.textContent = "@" + result.profile.username;
+        const badge = $("profileBadge"); if (badge) { badge.textContent = initial(result.profile.username); badge.title = "@" + result.profile.username + " · " + result.profile.role; }
+        const headerBadge = $("headerProfileBadge"); if (headerBadge) { headerBadge.textContent = initial(result.profile.username); headerBadge.title = "@" + result.profile.username + " · " + result.profile.role; }
+        showMessage("profileMessage", "Profil mis \u00e0 jour. Utilise le nouvel identifiant lors de ta prochaine connexion.", false);
+      } catch (error) { showMessage("profileMessage", error.message || "La mise \u00e0 jour du profil a echou\u00e9."); }
+    });
     $("changeOwnPassword")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const password = $("ownPassword").value;
