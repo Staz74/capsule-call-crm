@@ -55,3 +55,61 @@
 
 /* Synthèse : cartes au thème brun du CRM et suppression du bloc de configuration fictif */
 #screen-synthesis .synthesis-stat{background:#302925;border-color:#55473f}#screen-synthesis .synthesis-stat b{color:#f2e8e2}#screen-synthesis .synthesis-stat span{color:#c3b3ab}.bottom>.workspace{display:none!important}
+
+/* Mobile usability pass: touch targets, safe areas and compact navigation */
+@media(max-width:700px){
+  html,body{max-width:100%;overflow-x:hidden}
+  .app{min-height:100svh}
+  .sidebar{padding-top:max(18px,env(safe-area-inset-top));padding-bottom:max(18px,env(safe-area-inset-bottom))}
+  .top{height:64px;gap:8px;padding:0 10px;padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
+  .topbar-left{flex:1;min-width:0;gap:7px}
+  #menu{display:grid!important;place-items:center;flex:0 0 40px;width:40px;height:40px;min-height:40px;padding:0;background:#2e2626;border-color:#514242;color:#f2e8e2;font-size:18px}
+  .top-brand{min-width:0;gap:5px}
+  .top-brand>img{flex:0 0 29px;width:29px;height:29px}
+  .top-brand .header-user{min-width:0;max-width:96px;overflow:hidden}
+  .top-brand .header-user strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .top-brand .header-user small{overflow:hidden;white-space:nowrap}
+  .topright{flex:0 0 auto;min-width:0;gap:0}
+  #headerProfileBadge,#headerLogoutBtn{display:none}
+  .search{min-width:0}
+  .search input{width:clamp(112px,36vw,160px);height:42px;padding:9px 8px 9px 32px;font-size:16px}
+  .search span{top:11px}
+  .page{width:100%;padding:18px 12px calc(30px + env(safe-area-inset-bottom))}
+  .head{gap:12px;margin-bottom:18px}
+  .head h1{font-size:22px;line-height:1.2}
+  .head .actions{width:100%;gap:8px}
+  .head .actions>.btn{flex:1 1 145px;min-height:44px}
+  .filters{gap:8px}
+  .filters input,.filters select,.filters .btn{flex:1 1 100%;min-width:0;min-height:44px;font-size:16px}
+  .cols,.dashboard-main,.attendance-layout,.attendance-layout-new,.permission-layout{grid-template-columns:minmax(0,1fr)!important}
+  .metrics,#screen-dashboard .dashboard-summary,.profile-kpis,.attendance-kpis-new,.synthesis-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .metrics{gap:9px}
+  .card{padding:13px}
+  .value{font-size:24px}
+  .panel-head{padding:14px;align-items:flex-start;flex-wrap:wrap}
+  .tablewrap{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+  .tablewrap table{min-width:max-content}
+  .formgrid,.synthesis-meeting-form{grid-template-columns:minmax(0,1fr)}
+  .field.full{grid-column:auto}
+  input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:16px}
+  .btn,button{min-height:44px;touch-action:manipulation}
+  .quality-tabs,.settings-tabs,.performance-tabs,.attendance-subtabs{display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .quality-tabs::-webkit-scrollbar,.settings-tabs::-webkit-scrollbar,.performance-tabs::-webkit-scrollbar,.attendance-subtabs::-webkit-scrollbar{display:none}
+  .quality-tabs button,.settings-tabs button,.performance-tabs button,.attendance-subtabs button{flex:0 0 auto;min-height:44px;white-space:nowrap}
+  .modalbg{align-items:flex-end;padding:8px 8px max(8px,env(safe-area-inset-bottom))}
+  .modal{display:flex;flex-direction:column;width:100%;max-height:calc(100svh - 16px);border-radius:18px 18px 12px 12px}
+  .modalhead,.modalfoot{flex:0 0 auto;padding:13px 15px}
+  .modalbody{min-height:0;overflow:auto;padding:15px;-webkit-overflow-scrolling:touch}
+  .modalfoot{flex-wrap:wrap}
+  .modalfoot .btn{flex:1 1 130px;min-height:44px}
+  .synthesis-meeting-row{grid-template-columns:1fr;gap:7px}
+  .synthesis-meeting-row span:nth-child(3){grid-column:auto}
+}
+@media(max-width:390px){
+  .top-brand .header-user{max-width:82px}
+  .top-brand .header-user small{display:none}
+  .search input{width:clamp(104px,32vw,128px)}
+  .page{padding-left:10px;padding-right:10px}
+  .card{padding:11px}
+  .head h1{font-size:20px}
+}
