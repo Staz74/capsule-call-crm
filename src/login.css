@@ -134,3 +134,17 @@
   .main{display:block;width:100%;min-width:0;margin:0!important}
   .page{width:100%;margin:0}
 }
+
+/* A calm handoff from the login card into the CRM workspace. */
+.auth-gate{transition:opacity .58s cubic-bezier(.22,.72,.24,1),transform .58s cubic-bezier(.22,.72,.24,1)}
+.auth-gate[hidden]{display:none!important}
+.auth-gate.auth-exiting{opacity:0;transform:scale(1.018);pointer-events:none}
+.auth-gate.auth-exiting .auth-shell{transform:translateY(-9px) scale(.99)}
+.auth-shell{transition:transform .58s cubic-bezier(.22,.72,.24,1)}
+body.workspace-entering .app{animation:workspaceArrival .68s cubic-bezier(.2,.72,.18,1) both;transform-origin:center}
+@keyframes workspaceArrival{0%{opacity:.68;transform:translateY(13px) scale(.99);filter:blur(3px)}100%{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}}
+#loginForm .auth-wide{display:inline-flex;align-items:center;justify-content:center;gap:10px}
+#loginForm .auth-wide:disabled{cursor:progress;opacity:.92;transform:none;filter:none}
+.auth-button-spinner{width:16px;height:16px;flex:0 0 16px;border:2px solid #231b1d55;border-top-color:#231b1d;border-radius:50%;animation:authButtonSpin .78s linear infinite}
+@keyframes authButtonSpin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.auth-gate,.auth-shell{transition:none!important}body.workspace-entering .app{animation:none!important}.auth-button-spinner{animation:none!important;border-top-color:transparent}}
