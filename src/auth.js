@@ -163,7 +163,7 @@
     if (data?.error) throw new Error(data.error);
     return data;
   }
-  async function activate(session, reload = false) {
+  async function activate(session) {
     const user = session?.user;
     if (!user) return false;
     const { data: profile, error } = await client.from("crm_profiles").select("id,username,display_name,role,is_active").eq("id", user.id).maybeSingle();
@@ -184,7 +184,6 @@
       showMessage("loginMessage", "Connexion réussie, mais le chargement de la base a échoué : " + (error.message || "vérifie la connexion au projet."));
       return false;
     }
-    if (reload) { location.reload(); return true; }
     applyPermissions(profile.role);
     const badge = $("profileBadge"); if (badge) { badge.textContent = initial(profile.username); badge.title = "@" + profile.username + " · " + profile.role; }
     const name = $("activeUserName"); if (name) name.textContent = "";
@@ -194,7 +193,20 @@
     const headerUsername = $("headerUsername"); if (headerUsername) headerUsername.textContent = "";
     const headerRole = $("headerUserRole"); if (headerRole) headerRole.textContent = ({admin:"Admin",rh:"RH",chef_plateau:"Chef de plateau",directeur_operationnel:"Directeur opérationnel",imperator:"Imperator"}[profile.role] || profile.role);
     const headerBadge = $("headerProfileBadge"); if (headerBadge) { headerBadge.textContent = initial(profile.username); headerBadge.title = "@" + profile.username + " · " + profile.role; }
-    const gate = $("authGate"); if (gate) gate.hidden = true;
+    const gate = $("authGate");
+    if (gate) {
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (document.body.classList.contains("auth-pending") && !reduceMotion) {
+        gate.getBoundingClientRect();
+        document.body.classList.add("workspace-entering");
+        gate.classList.add("auth-exiting");
+        await new Promise((resolve) => setTimeout(resolve, 620));
+      }
+      gate.hidden = true;
+      gate.classList.remove("auth-exiting");
+    }
+    document.body.classList.remove("auth-pending", "workspace-entering");
+    $("loginForm")?.classList.remove("auth-submitting");
     if (profile.role === "admin") listAccounts().catch((e) => { console.error(e); showMessage("accountMessage", e.message, true); });
     return true;
   }
@@ -229,12 +241,40 @@
   document.addEventListener("DOMContentLoaded", async () => {
     $("loginForm")?.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const form = $("loginForm"), button = form.querySelector('button[type="submit"]');
+      const buttonLabel = button?.textContent.trim() || "Se connecter";
       const username = $("loginUsername").value.trim().toLowerCase(), password = $("loginPassword").value;
-      showMessage("loginMessage", "Connexion…", false);
-      const { data, error } = await client.auth.signInWithPassword({ email:usernameEmail(username), password });
-      if (error) { showMessage("loginMessage", "Identifiant ou mot de passe incorrect."); return; }
-      showMessage("loginMessage", "Connexion en cours…", false);
-      await activate(data.session, true);
+      const setBusy = (busy) => {
+        form.setAttribute("aria-busy", String(busy));
+        form.classList.toggle("auth-submitting", busy);
+        if (button) {
+          button.disabled = busy;
+          button.innerHTML = busy ? '<span class="auth-button-spinner" aria-hidden="true"></span><span>Connexion…</span>' : buttonLabel;
+        }
+      };
+      document.body.classList.add("auth-pending");
+      setBusy(true);
+      showMessage("loginMessage", "Vérification de vos accès…", false);
+      try {
+        const { data, error } = await client.auth.signInWithPassword({ email:usernameEmail(username), password });
+        if (error) {
+          showMessage("loginMessage", "Identifiant ou mot de passe incorrect.");
+          setBusy(false);
+          document.body.classList.remove("auth-pending");
+          return;
+        }
+        showMessage("loginMessage", "Ouverture de votre espace…", false);
+        const activated = await activate(data.session);
+        if (!activated) {
+          setBusy(false);
+          document.body.classList.remove("auth-pending", "workspace-entering");
+        }
+      } catch (error) {
+        console.error("Connexion CRM:", error);
+        showMessage("loginMessage", "Connexion impossible pour le moment. Vérifie ta connexion et réessaie.");
+        setBusy(false);
+        document.body.classList.remove("auth-pending", "workspace-entering");
+      }
     });
     $("showBootstrap")?.addEventListener("click", () => {
       bootstrapCodeVisible = !bootstrapCodeVisible;
