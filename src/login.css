@@ -113,3 +113,24 @@
   .card{padding:11px}
   .head h1{font-size:20px}
 }
+
+/* Correct the phone drawer: keep it out of layout and restore full navigation labels. */
+@media(max-width:800px){
+  .app{display:block;min-height:100svh}
+  .sidebar{
+    position:fixed!important;z-index:30!important;top:0!important;left:0!important;right:auto!important;bottom:auto!important;
+    width:min(285px,86vw)!important;height:100vh;height:100dvh;min-height:100svh;overflow-y:auto;
+    padding:calc(18px + env(safe-area-inset-top)) 14px calc(18px + env(safe-area-inset-bottom));
+    transform:translateX(calc(-100% - 16px));transition:transform .22s ease;
+    box-shadow:20px 0 45px #09070788;
+  }
+  .sidebar.open{left:0!important;transform:translateX(0)!important}
+  .sidebar .brand>div:last-child,.sidebar .label,.sidebar .admin>div:last-child{display:block!important}
+  .sidebar .brand{padding:0 8px 24px}
+  .sidebar .label{padding:14px 11px 8px}
+  .sidebar .nav button{width:100%;justify-content:flex-start!important;padding:12px;white-space:normal}
+  .sidebar .nav .ico{width:19px;flex:0 0 19px}
+  .sidebar .bottom>.workspace{display:none!important}
+  .main{display:block;width:100%;min-width:0;margin:0!important}
+  .page{width:100%;margin:0}
+}
