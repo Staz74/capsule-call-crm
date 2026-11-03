@@ -52,3 +52,6 @@
 /* Header identity and compact workspace marker */
 .top-brand{gap:10px}.top-brand .header-user{display:flex;flex-direction:column;gap:2px;max-width:190px;white-space:normal}.top-brand .header-user strong{font-size:12px;line-height:1.15}.top-brand .header-user small{display:flex;gap:5px;color:#b7aaa7;font-size:10px;line-height:1.2}.auth-live{transform:translateX(-24px);font-size:8px;letter-spacing:1.45px}
 @media(max-width:700px){.top-brand .header-user{max-width:118px}.top-brand .header-user strong{font-size:10px}.top-brand .header-user small{font-size:8px}.auth-live{transform:translateX(-14px)}}
+
+/* Synthèse : cartes au thème brun du CRM et suppression du bloc de configuration fictif */
+#screen-synthesis .synthesis-stat{background:#302925;border-color:#55473f}#screen-synthesis .synthesis-stat b{color:#f2e8e2}#screen-synthesis .synthesis-stat span{color:#c3b3ab}.bottom>.workspace{display:none!important}
