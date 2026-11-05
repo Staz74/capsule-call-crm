@@ -156,14 +156,27 @@
         ...matchingKpis.map((row) => numeric(field(row, aliases.alerts)))
       ].filter((value) => value !== null);
       const alerts = alertValues.length ? alertValues.reduce((total, value) => total + value, 0) : null;
-      const lateMinutes = lates.reduce((total, item) => total + (numeric(item.minutes ?? item.duration) || 0), 0);
+      const manualLateDates = new Set(lates.map(item => dateOf(item.date)).filter(Boolean));
+      const absenceDates = new Set(absences.map(item => dateOf(item.date)).filter(Boolean));
+      const schedule = employee.workSchedule || {};
+      const scheduledStart = schedule.morningStart || schedule.afternoonStart || "";
+      const startMinutes = scheduledStart ? Number(scheduledStart.slice(0,2))*60 + Number(scheduledStart.slice(3,5)) : null;
+      const loginByDate = new Map();
+      loginCandidates.forEach(item => { const date=dateOf(item.date), time=timeText(item.time); if(!date||!time)return; const mins=Number(time.slice(0,2))*60+Number(time.slice(3,5)); if(!loginByDate.has(date)||mins<loginByDate.get(date).minutes)loginByDate.set(date,{time,minutes:mins}); });
+      const automaticLates = [];
+      if(startMinutes!==null) for(const [date,login] of loginByDate){
+        if(manualLateDates.has(date)||absenceDates.has(date))continue;
+        const minutes=login.minutes-startMinutes;if(minutes>0)automaticLates.push({date,minutes,level:minutes<=10?"green":minutes<=30?"orange":"red"});
+      }
+      const combinedLates = [...lates,...automaticLates];
+      const lateMinutes = combinedLates.reduce((total, item) => total + (numeric(item.minutes ?? item.duration) || 0), 0);
       const connectedTime = totalDuration([
         ...crmRows.map((item) => item.connectedTime || item.connected_time || item.h_total),
         ...matchingKpis.map((row) => field(row, aliases.connectedTime))
       ]);
       return {
         employee, firstLogin: loginCandidates[0]?.time || "", loginDate: loginCandidates[0]?.date || "",
-        lates: lates.length, lateMinutes, absences: absences.length, alerts,
+        lates: combinedLates.length, lateMinutes, absences: absences.length, alerts,
         calls, responded, validated, appointments, connectedTime, noShowRate, kpiRowCount: matchingKpis.length,
         hasDate: matchingKpis.some((row) => !!field(row, aliases.date))
       };
