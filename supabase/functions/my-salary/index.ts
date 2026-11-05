@@ -55,8 +55,11 @@ Deno.serve(async(req:Request)=>{
   const settings={...configured};
   let demoDefaultsApplied=false;
   const names=new Set([employee.name,employee.brokerlinkAccountName,employee.brokerlinkId].filter(Boolean).map(normalize));
+  const brokerlinkEmails=new Set([employee.brokerlinkEmail,employee.brokerlink_email,employee.email_brokerlink].filter(Boolean).map((value:string)=>String(value).trim().toLowerCase()));
   const allRows=Array.isArray(state.kpiRows)?state.kpiRows:[];
   const matched=allRows.filter((row:any)=>{
+    const email=field(row,["brokerlink_email","email_brokerlink","agent_email","caller_email","user_email","email","courriel","mail"]);
+    if(email)return brokerlinkEmails.has(String(email).trim().toLowerCase());
     const label=field(row,["collaborateur","employee","nom","nom_complet","collaborateur_nom","employee_name","telephoniste","caller","brokerlink_id","id_brokerlink"]);
     return label&&names.has(normalize(label));
   });
@@ -81,7 +84,7 @@ Deno.serve(async(req:Request)=>{
     if(configured.absenceHalf===0&&configured.absenceFull===0){configured.absenceHalf=45455;configured.absenceFull=90909;demoDefaultsApplied=true;}
   }
   const appointmentAliases=["rdv_pris","rendez_vous","appointments","appointment_count"];
-  const openingAliases=["ouverture_validee","ouvertures_validees","ouverture_confirmee","ouvertures_confirmees","signatures_validees","signatures_confirmees","signatures","openings","validated_openings","validated_signatures"];
+  const openingAliases=["ouverture_validee","ouvertures_validees","ouverture_confirmee","ouvertures_confirmees","signature_confirmee","signatures_confirmees","signatures_validees","confirmed_signatures","validated_signatures","signed_accounts","signatures","openings","validated_openings"];
   const perDay=new Map<string,number>(),opensByDay=new Map<string,number>();
   let appointmentTotal=0,openingsTotal=0,hasAppointmentData=false,hasOpeningData=false;
   for(const row of monthRows){
