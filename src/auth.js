@@ -313,6 +313,14 @@
       .cc-employee-access .cc-access-status{font-size:11px;color:#edc6cc;min-height:16px}
       .cc-employee-access .cc-access-topline{font-size:11px;color:#d3c4c3}
       .cc-employee-access .cc-access-topline b{color:#fff}
+      .cc-employee-brokerlink{margin:0 0 16px!important;border-color:#65434c!important;background:linear-gradient(140deg,#2b2023,#1f191b)!important}
+      .cc-brokerlink-body{padding:14px 18px;display:grid;gap:9px}
+      .cc-brokerlink-body label{color:#e8cbd1;font-size:11px;font-weight:700}
+      .cc-brokerlink-row{display:flex;align-items:center;gap:9px}
+      .cc-brokerlink-row input{flex:1;min-width:0;background:#181315;border:1px solid #674852;border-radius:9px;padding:10px 12px;color:#f5e8eb}
+      .cc-brokerlink-status{min-height:15px;color:#c6aaaf;font-size:10px}
+      .cc-brokerlink-warning{padding:10px 12px;border:1px solid #89633c;border-radius:9px;background:#38281c;color:#ffdda0;font-size:11px;line-height:1.45}
+      .attendance-kpis-new.cc-first-login-only{grid-template-columns:minmax(0,330px)}
       @keyframes ccCurtainReveal{from{opacity:0}to{opacity:1}}
       @keyframes ccSakuraBloom{0%{opacity:0;transform:translate(-50%,-50%) scale(.3)}45%{opacity:.72}100%{opacity:0;transform:translate(-50%,-50%) scale(1.18)}}
       @keyframes ccTransitionRise{from{opacity:0;transform:translateY(16px) scale(.96);filter:blur(4px)}to{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}}
@@ -385,8 +393,56 @@
       tracked.__ccTracked=true;window[name]=tracked;
     };
     ["openEmployeeProfile","renderProfile","crmOpenEmployeeProfile"].forEach(wrap);
-    const observe=target=>{if(target&&!target.dataset.ccProfileObserver){new MutationObserver(()=>setTimeout(renderEmployeeSalaryAccessCard,0)).observe(target,{childList:true,subtree:true,characterData:true});target.dataset.ccProfileObserver="1"}};
-    observe($("profileIdentity"));observe($("profileTitle"));
+    const refresh=()=>setTimeout(()=>{renderBrokerlinkEmailCard();renderEmployeeSalaryAccessCard();normalizeProfileAttendanceKpis()},0);
+    const observe=target=>{if(target&&!target.dataset.ccProfileObserver){new MutationObserver(refresh).observe(target,{childList:true,subtree:true,characterData:true});target.dataset.ccProfileObserver="1"}};
+    observe($("profileIdentity"));observe($("profileTitle"));observe($("profileContent"));
+    refresh();
+  }
+  function normalizeProfileAttendanceKpis() {
+    const host=$("profileContent"),grid=host?.querySelector(".attendance-crm-card .attendance-kpis-new");
+    if(!grid)return;
+    const metrics=[...grid.querySelectorAll(".attendance-kpi")];
+    metrics.slice(1).forEach(item=>item.remove());
+    grid.classList.add("cc-first-login-only");
+  }
+  function renderBrokerlinkEmailCard() {
+    if(!currentProfile||currentProfile.role==="caller")return;
+    const host=$("profileIdentity");if(!host)return;
+    let employees=[];try{employees=JSON.parse(localStorage.getItem("capsule_employees")||"[]")}catch{}
+    let employeeId=Number(window.crmSelectedProfileEmployeeId);
+    if(!employeeId){const title=$("profileTitle")?.textContent?.trim();const matches=employees.filter(item=>item.name===title);if(matches.length===1)employeeId=Number(matches[0].id)}
+    const employee=employees.find(item=>Number(item.id)===employeeId);if(!employee)return;
+    let card=$("ccEmployeeBrokerlinkLink");
+    if(!card){
+      card=document.createElement("section");card.id="ccEmployeeBrokerlinkLink";card.className="panel cc-employee-brokerlink";host.insertAdjacentElement("afterend",card);
+      card.addEventListener("submit",async event=>{
+        const form=event.target;if(form.id!=="ccBrokerlinkEmailForm")return;
+        event.preventDefault();
+        const email=String(form.querySelector("[name=brokerlinkEmail]")?.value||"").trim().toLowerCase(),status=form.querySelector(".cc-brokerlink-status"),button=form.querySelector('button[type="submit"]');
+        if(!email){if(status)status.textContent="Saisis l’e-mail Brokerlink pour créer le lien.";return}
+        button.disabled=true;if(status)status.textContent="Enregistrement du lien…";
+        try{
+          let currentEmployees=[];try{currentEmployees=JSON.parse(localStorage.getItem("capsule_employees")||"[]")}catch{}
+          const selectedId=Number(window.crmSelectedProfileEmployeeId),selected=currentEmployees.find(item=>Number(item.id)===selectedId);
+          if(!selected)throw new Error("Fiche collaborateur introuvable. Rouvre la fiche et réessaie.");
+          const duplicate=currentEmployees.find(item=>Number(item.id)!==selectedId&&String(item.brokerlinkEmail||"").trim().toLowerCase()===email);
+          if(duplicate)throw new Error("Cette adresse Brokerlink est déjà liée à une autre fiche. Vérifie le compte.");
+          selected.brokerlinkEmail=email;
+          localStorage.setItem("capsule_employees",JSON.stringify(currentEmployees));
+          const pending=queues.get("employees");if(pending)await pending;
+          if(status)status.textContent="E-mail Brokerlink enregistré et synchronisé.";
+          card.dataset.signature="";
+          renderBrokerlinkEmailCard();
+          window.renderEmployees?.();window.renderDash?.();
+        }catch(error){if(status)status.textContent=error.message||"Impossible d’enregistrer cet e-mail."}
+        finally{const submit=card.querySelector('button[type="submit"]');if(submit)submit.disabled=false}
+      });
+    }
+    const email=String(employee.brokerlinkEmail||"").trim().toLowerCase(),signature=employeeId+":"+email;
+    if(card.dataset.signature===signature)return;
+    card.dataset.signature=signature;
+    const warning=email?"":'<div class="cc-brokerlink-warning" role="alert">E-mail Brokerlink manquant : les KPI, signatures et premières connexions ne pourront pas être associés à cette fiche.</div>';
+    card.innerHTML='<div class="panel-head"><div><div class="panel-title">Lien avec Brokerlink</div><div class="panel-desc">L’adresse e-mail Brokerlink sert à rapprocher les KPI et la première connexion de cette fiche.</div></div></div><div class="cc-brokerlink-body">'+warning+'<form id="ccBrokerlinkEmailForm"><label for="ccBrokerlinkEmailInput">E-mail Brokerlink</label><div class="cc-brokerlink-row"><input id="ccBrokerlinkEmailInput" name="brokerlinkEmail" type="email" autocomplete="email" maxlength="254" required value="'+escapeHtml(email)+'" placeholder="prenom.nom@brokerlink…"><button class="btn primary" type="submit">Enregistrer</button></div><small class="cc-brokerlink-status" aria-live="polite">'+(email?"Adresse liée à cette fiche.":"À renseigner pour activer le rapprochement des données.")+'</small></form></div>';
   }
   function renderEmployeeSalaryAccessCard() {
     if(currentProfile?.role!=="admin")return;
