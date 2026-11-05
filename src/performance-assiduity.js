@@ -12,7 +12,9 @@
     responded: ["contacts", "contacts_joints", "repondues", "fiches_repondues", "answered", "leads_answered"],
     appointments: ["rdv_pris", "rendez_vous", "appointments", "appts", "appointment_count"],
     alerts: ["alertes", "alerts", "alert_count", "alerts_count"],
-    firstLogin: ["premiere_connexion", "first_login", "heure_premiere_connexion", "h_1ere_co", "first_connection"]
+    firstLogin: ["premiere_connexion", "first_login", "heure_premiere_connexion", "h_1ere_co", "first_connection"],
+    email: ["brokerlink_email", "email_brokerlink", "agent_email", "caller_email", "user_email", "email", "courriel", "mail"],
+    signatures: ["signatures_confirmees", "signature_confirmee", "signatures_validees", "signature_validee", "ouvertures_confirmees", "ouverture_confirmee", "validated_signatures", "confirmed_signatures", "validated_openings", "confirmed_openings", "signed_accounts", "signatures"]
   };
   const field = (row, candidates) => {
     const keys = Object.keys(row || {}), match = keys.find((key) => candidates.includes(normalize(key)));
@@ -23,6 +25,12 @@
     if (first && last) return [first, last].filter(Boolean).join(" ").trim();
     const direct = field(row, aliases.name);
     return String(direct || first || last || "").trim();
+  };
+  const rowMatchesEmployee = (row, employee) => {
+    const importedEmail = String(field(row, aliases.email) || "").trim().toLowerCase();
+    const brokerlinkEmail = String(employee?.brokerlinkEmail || "").trim().toLowerCase();
+    if (importedEmail && brokerlinkEmail) return importedEmail === brokerlinkEmail;
+    return normalize(rowName(row)) === normalize(employee?.name);
   };
   const dateOf = (value) => {
     const text = String(value ?? "");
@@ -84,12 +92,18 @@
     const selected = selectedIds("performance", choices), { from, to } = dateRange("performance");
     const rows = context.kpiRows || [];
     const records = employees.filter((employee) => selected.has(String(employee.id))).map((employee) => {
-      const matching = rows.filter((row) => normalize(rowName(row)) === normalize(employee.name) && inPeriod(field(row, aliases.date), from, to));
-      return { employee, files: sumField(matching, aliases.files), calls: sumField(matching, aliases.calls), responded: sumField(matching, aliases.responded), appointments: sumField(matching, aliases.appointments) };
+      const matching = rows.filter((row) => rowMatchesEmployee(row, employee) && inPeriod(field(row, aliases.date), from, to));
+      return { employee, files: sumField(matching, aliases.files), calls: sumField(matching, aliases.calls), responded: sumField(matching, aliases.responded), appointments: sumField(matching, aliases.appointments), signatures: sumField(matching, aliases.signatures) };
     });
     records.sort((a, b) => a.employee.name.localeCompare(b.employee.name, "fr"));
-    const noEmployee = '<tr><td colspan="5"><div class="empty"><b>Aucun collaborateur sélectionné</b>Sélectionne une ou plusieurs personnes dans le filtre.</div></td></tr>';
-    host.innerHTML = !records.length ? noEmployee : records.map((row) => '<tr><td><button type="button" class="assiduity-person-link" data-open-performance-profile="' + esc(row.employee.id) + '">' + esc(row.employee.name) + '</button></td><td>' + show(row.files) + '</td><td>' + show(row.calls) + '</td><td>' + show(row.responded) + '</td><td>' + show(row.appointments) + '</td></tr>').join("");
+    const noEmployee = '<tr><td colspan="6"><div class="empty"><b>Aucun collaborateur sélectionné</b>Sélectionne une ou plusieurs personnes dans le filtre.</div></td></tr>';
+    host.innerHTML = !records.length ? noEmployee : records.map((row) => '<tr><td><button type="button" class="assiduity-person-link" data-open-performance-profile="' + esc(row.employee.id) + '">' + esc(row.employee.name) + '</button></td><td>' + show(row.files) + '</td><td>' + show(row.calls) + '</td><td>' + show(row.responded) + '</td><td>' + show(row.appointments) + '</td><td>' + show(row.signatures) + '</td></tr>').join("");
+    const header = host.closest("table")?.querySelector("thead tr");
+    if (header && !header.querySelector("[data-cc-signatures-header]")) {
+      const cell = document.createElement("th"); cell.dataset.ccSignaturesHeader = "true"; cell.textContent = "SIGNATURES CONFIRMÉES"; header.appendChild(cell);
+    }
+    const description = host.closest(".performance-table-panel")?.querySelector(".panel-desc");
+    if (description) description.textContent = "Fiches traitées, appels passés et répondus, rendez-vous pris et signatures confirmées.";
     const note = $("#performanceSourceNote");
     if (note) note.textContent = (from || to ? "Période : " + (from ? formatDate(from) : "début") + " → " + (to ? formatDate(to) : "aujourd’hui") + ". " : "Période : toutes les dates. ") + "Les colonnes absentes du fichier restent affichées « — ». Les lignes sans date ne sont incluses que lorsque la période n’est pas filtrée.";
   }
@@ -104,7 +118,7 @@
       const lates = (store.lates || []).filter((item) => inPeriod(item.date, from, to));
       const absences = (store.absences || []).filter((item) => inPeriod(item.date, from, to));
       const crmRows = (store.crm || []).filter((item) => inPeriod(item.date, from, to));
-      const matchingKpis = kpiRows.filter((row) => normalize(rowName(row)) === normalize(employee.name) && inPeriod(field(row, aliases.date), from, to));
+      const matchingKpis = kpiRows.filter((row) => rowMatchesEmployee(row, employee) && inPeriod(field(row, aliases.date), from, to));
       const logins = [
         ...crmRows.map((item) => ({ date: item.date, time: timeText(item.firstLogin || item.first_login || item.firstConnection || item.h_1ere_co) })),
         ...matchingKpis.map((row) => ({ date: field(row, aliases.date), time: timeText(field(row, aliases.firstLogin)) }))
