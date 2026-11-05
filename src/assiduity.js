@@ -23,6 +23,7 @@
     noShowRate: ["no_show", "no_show_rate", "taux_no_show", "noshow_rate", "no_show_percent"],
     alerts: ["alertes", "alerts", "alert_count", "alerts_count"],
     firstLogin: ["premiere_connexion", "first_login", "heure_premiere_connexion", "h_1ere_co", "first_connection"],
+    email: ["brokerlink_email", "email_brokerlink", "agent_email", "caller_email", "user_email", "email", "courriel", "mail"],
     connectedTime: ["temps_connecte", "connected_time", "h_total", "temps_total", "time_connected"]
   };
   const field = (row, candidates) => {
@@ -35,6 +36,12 @@
     if (first && last) return [first, last].filter(Boolean).join(" ").trim();
     const direct = field(row, ["collaborateur", "employee", "nom_complet", "collaborateur_nom", "employee_name", "telephoniste", "callee", "calleur", "nom"]);
     return String(direct || first || last || "").trim();
+  };
+  const rowMatchesEmployee = (row, employee) => {
+    const importedEmail = String(field(row, aliases.email) || "").trim().toLowerCase();
+    const brokerlinkEmail = String(employee?.brokerlinkEmail || "").trim().toLowerCase();
+    if (importedEmail && brokerlinkEmail) return importedEmail === brokerlinkEmail;
+    return normalize(rowName(row)) === normalize(employee?.name);
   };
   const dateOf = (value) => {
     const match = String(value ?? "").match(/\d{4}-\d{2}-\d{2}/);
@@ -119,7 +126,7 @@
       const lates = (store.lates || []).filter((item) => inPeriod(item.date, from, to));
       const absences = (store.absences || []).filter((item) => inPeriod(item.date, from, to));
       const crmRows = (store.crm || []).filter((item) => inPeriod(item.date, from, to));
-      const matchingKpis = kpiRows.filter((row) => normalize(rowName(row)) === normalize(employee.name))
+      const matchingKpis = kpiRows.filter((row) => rowMatchesEmployee(row, employee))
         .filter((row) => inPeriod(field(row, aliases.date), from, to));
       const sortedCrm = crmRows.slice().sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
       const loginCandidates = sortedCrm.map((item) => ({ date: item.date, time: timeText(item.firstLogin || item.first_login || item.firstConnection || item.h_1ere_co) })).filter((item) => item.time);
