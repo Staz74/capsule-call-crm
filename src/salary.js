@@ -41,7 +41,7 @@
     if(!data.hasOpeningData)missing.push("les signatures/ouvertures confirmées Brokerlink");
     if(!data.hasAttendanceData)missing.push("les retards et absences saisis dans le CRM");
     const currentRank=data.rank?.name||"En attente";
-    const progress=data.rank&&data.nextRank?Math.min(100,Math.round((data.openings-data.rank.min+1)/(data.nextRank.min-data.rank.min)*100)):data.rank?100:0;
+    const progress=data.rank&&data.nextRank?Math.min(100,Math.round((data.openings-data.rank.min)/(data.nextRank.min-data.rank.min)*100)):data.rank?100:0;
     const rankText=data.openingsRemaining>0&&data.nextRank?"Encore "+data.openingsRemaining+" ouverture"+(data.openingsRemaining>1?"s":"")+" pour atteindre "+data.nextRank.name:null;
     const maluses=[
       {name:"Rendez-vous manquants", detail:data.missedAppointments==null?"Données à recevoir":data.missedAppointments+" rendez-vous", amount:data.productionMalus},
