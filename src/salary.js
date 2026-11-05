@@ -4,21 +4,18 @@
   const monthNow=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")};
   const monthLabel=value=>new Date(value+"-01T12:00:00").toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
   const tiers=[
-    {name:"CHALLENGER",min:20,coefficient:1,color:"#85d9f5",dark:"#145273",glow:"#72e5ff",icon:"challenger"},
-    {name:"MASTER",min:15,coefficient:.9,color:"#dcadff",dark:"#4a1676",glow:"#d084ff",icon:"master"},
-    {name:"DIAMOND",min:10,coefficient:.75,color:"#9fd9ff",dark:"#1b2f7a",glow:"#74c6ff",icon:"diamond"},
-    {name:"GOLD",min:5,coefficient:.5,color:"#f6d27a",dark:"#6e4a12",glow:"#f2c14e",icon:"gold"},
-    {name:"IRON",min:0,coefficient:.25,color:"#b9c2d9",dark:"#262120",glow:"#c9a27e",icon:"iron"}
+    {name:"CHALLENGER",min:20,coefficient:1,color:"#85d9f5",dark:"#145273",glow:"#72e5ff",icon:"challenger",image:"/assets/ranks/challenger.webp"},
+    {name:"MASTER",min:15,coefficient:.9,color:"#dcadff",dark:"#4a1676",glow:"#d084ff",icon:"master",image:"/assets/ranks/master.webp"},
+    {name:"DIAMOND",min:10,coefficient:.75,color:"#9fd9ff",dark:"#1b2f7a",glow:"#74c6ff",icon:"diamond",image:"/assets/ranks/diamond.png"},
+    {name:"GOLD",min:5,coefficient:.5,color:"#f6d27a",dark:"#6e4a12",glow:"#f2c14e",icon:"gold",image:"/assets/ranks/gold.png"},
+    {name:"IRON",min:0,coefficient:.25,color:"#b9c2d9",dark:"#262120",glow:"#c9a27e",icon:"iron",image:"/assets/ranks/iron.webp"}
   ];
   let currentProfile=null,requestNumber=0;
   const personFirst=name=>String(name||"").trim().split(/\s+/)[0]||"";
 
   function crest(rank,size=78){
-    const tier=tiers.find(item=>item.name===rank?.name)||tiers[4],id="cc"+tier.icon+size;
-    const crown=tier.icon==="master"||tier.icon==="challenger";
-    const rays=tier.icon==="challenger"?'<path d="M50 22V3M37 25 24 8M63 25 76 8" stroke="'+tier.glow+'" stroke-width="2" stroke-linecap="round"/>':"";
-    const crownPath=crown?'<path d="m36 25 2-15 8 9 4-16 4 16 8-9 2 15Z" fill="url(#metal)"/>':"";
-    return '<svg class="rank-crest" style="--rank-glow:'+tier.glow+'" width="'+size+'" height="'+Math.round(size*.7)+'" viewBox="0 0 100 70" aria-hidden="true"><defs><linearGradient id="metal'+id+'" x1="0" y1="0" x2="1" y2="1"><stop stop-color="'+(tier.icon==="iron"?"#d1c6ba":tier.color)+'"/><stop offset=".52" stop-color="'+tier.glow+'"/><stop offset="1" stop-color="'+tier.dark+'"/></linearGradient><linearGradient id="shield'+id+'" x1="0" y1="0" x2="0" y2="1"><stop stop-color="'+tier.color+'"/><stop offset="1" stop-color="'+tier.dark+'"/></linearGradient></defs>'+rays+'<g fill="url(#metal'+id+')" stroke="'+tier.dark+'" stroke-width="1.2" stroke-linejoin="round"><path d="M45 49C31 50 18 40 11 25 8 19 6 12 5 5c9 6 17 9 25 14 9 6 14 13 15 24Z"/><path d="M55 49c14 1 27-9 34-24 3-6 5-13 6-20-9 6-17 9-25 14-9 6-14 13-15 24Z"/></g><path d="m50 12 17 10-2 22c-2 12-8 19-15 25-7-6-13-13-15-25l-2-22Z" fill="url(#shield'+id+')" stroke="'+tier.dark+'" stroke-width="1.8" stroke-linejoin="round"/><path d="m50 19 11 7-2 17c-1 8-5 13-9 17-4-4-8-9-9-17l-2-17Z" fill="none" stroke="#fff" stroke-opacity=".55"/><path d="m50 27 8 12-8 14-8-14Z" fill="'+tier.glow+'" stroke="#fff" stroke-opacity=".55"/><path d="m50 27-8 12h8Z" fill="#fff" fill-opacity=".5"/>'+crownPath+'</svg>';
+    const tier=tiers.find(item=>item.name===rank?.name)||tiers[4];
+    return '<img class="rank-crest" src="'+tier.image+'" width="'+size+'" height="'+size+'" alt="" aria-hidden="true" decoding="async">';
   }
 
   function portalShell(profile){
@@ -100,7 +97,7 @@
   }
   function render(data,host){
     const notice=host.querySelector("#salaryNotice");
-    if(data.demoMode){notice.innerHTML='<b>EXEMPLE · DONNÉES FICTIVES</b><span>Simulation pour Christelle, non enregistrée dans les historiques. Les montants de malus suivent les valeurs des Paramètres.</span>'+((!data.rdvMalusConfigured||!data.lateMalusConfigured||!data.absenceMalusConfigured)?'<span>Dans cet exemple uniquement, les montants réglés à 0 Ar utilisent la grille de référence. Les comptes réels suivent strictement les valeurs de Contrôle & règles.</span>':"");notice.className="salary-notice demo"}
+    if(data.demoMode){notice.innerHTML='<b>EXEMPLE · DONNÉES FICTIVES</b><span>Simulation pour Christelle, non enregistrée dans les historiques. Les montants de malus suivent les valeurs des Paramètres.</span>'+((!data.rdvMalusConfigured||!data.lateMalusConfigured||!data.absenceMalusConfigured)?'<span>Un ou plusieurs montants de malus sont réglés à 0 Ar dans Contrôle & règles.</span>':"");notice.className="salary-notice demo"}
     else if(!data.hasKpiData||!data.hasOpeningData){notice.textContent="Estimation partielle · le montant de base vient des Paramètres; les indicateurs manquants seront ajoutés après import des données Brokerlink.";notice.className="salary-notice partial"}
     else{notice.textContent="Données KPI et paramètres du mois pris en compte.";notice.className="salary-notice complete"}
     host.querySelector("#salaryStats").innerHTML=stats(data);

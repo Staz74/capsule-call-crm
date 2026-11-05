@@ -64,7 +64,7 @@
 .salary-rank-head{text-align:center;padding-bottom:17px}
 .salary-rank-medal{width:170px;height:170px;margin:0 auto 3px;border:3px solid #e8a0b6;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle,#4a2433,#14090e);animation:salary-medal-pulse 2s ease-in-out infinite;box-shadow:0 0 22px rgba(242,160,184,.18)}
 @keyframes salary-medal-pulse{0%,100%{box-shadow:0 0 0 0 rgba(242,160,184,.2)}50%{box-shadow:0 0 0 10px rgba(242,160,184,0)}}
-.salary-rank-medal .rank-crest{filter:drop-shadow(0 0 8px var(--rank-glow,#f2c14e))}
+.rank-crest{display:block;object-fit:contain}.salary-rank-medal .rank-crest{filter:drop-shadow(0 0 8px var(--rank-glow,#f2c14e))}
 .salary-rank-name{color:#f6d27a;font-family:"Cormorant Garamond",Georgia,serif;font-size:38px;font-weight:700;letter-spacing:.1em;line-height:1.05}
 .salary-rank-coefficient{margin-top:3px;color:var(--muted);font-size:12px}
 .salary-rank-message{margin-top:9px;color:#6fd3ff;font-size:12px;line-height:1.4}
@@ -72,14 +72,14 @@
 .salary-rank-progress span{display:block;height:100%;background:linear-gradient(90deg,#c8587a,#ffc9d8);transition:width 1.2s cubic-bezier(.2,.8,.2,1)}
 .salary-rank-progress-label{display:flex;justify-content:space-between;margin-top:5px;color:var(--muted);font-size:9px;letter-spacing:.08em;text-transform:uppercase}
 .salary-ladder-title{padding:12px 0 9px;border-top:1px solid var(--line);color:var(--muted);font-size:10px;letter-spacing:.11em;text-transform:uppercase}
-.salary-ladder-rows{position:relative;display:flex;flex-direction:column;justify-content:space-between;flex:1;min-height:295px;padding:0 0 3px}
-.salary-ladder-rows:before{content:"";position:absolute;left:28px;top:27px;bottom:27px;width:4px;border-radius:4px;background:#2a1822}
-.salary-ladder-rows:after{content:"";position:absolute;left:28px;bottom:27px;width:4px;height:var(--rank-fill,0%);max-height:calc(100% - 54px);border-radius:4px;background:linear-gradient(0deg,#b4476b,#f2a0b8 70%,#ffe0e8);box-shadow:0 0 15px rgba(242,160,184,.45);animation:salary-gauge-grow 1.5s cubic-bezier(.2,.8,.2,1) both}
+.salary-ladder-rows{position:relative;display:flex;flex-direction:column;justify-content:space-between;flex:1;min-height:295px;padding:0 0 3px 12px}
+.salary-ladder-rows:before{content:"";position:absolute;left:4px;top:27px;bottom:27px;width:3px;border-radius:4px;background:#2a1822}
+.salary-ladder-rows:after{content:"";position:absolute;left:4px;bottom:27px;width:3px;height:var(--rank-fill,0%);max-height:calc(100% - 54px);border-radius:4px;background:linear-gradient(0deg,#b4476b,#f2a0b8 70%,#ffe0e8);box-shadow:0 0 15px rgba(242,160,184,.45);animation:salary-gauge-grow 1.5s cubic-bezier(.2,.8,.2,1) both}
 @keyframes salary-gauge-grow{from{height:0}}
-.salary-tier{position:relative;z-index:1;display:flex;align-items:center;gap:7px;min-height:56px;padding:2px 5px;border-radius:12px;opacity:.43;filter:grayscale(.75);transition:.2s}
+.salary-tier{position:relative;z-index:1;display:flex;align-items:center;gap:10px;min-height:56px;padding:2px 5px;border-radius:12px;opacity:.43;filter:grayscale(.75);transition:.2s}
 .salary-tier.active{opacity:1;filter:none;background:rgba(255,214,224,.07);box-shadow:inset 0 0 0 1px rgba(240,170,190,.14)}
 .salary-tier.passed{opacity:.62;filter:grayscale(.25)}
-.salary-tier-icon{width:58px;height:49px;flex:none;display:grid;place-items:center}
+.salary-tier-icon{width:84px;height:62px;flex:none;display:grid;place-items:center}
 .salary-tier-copy{min-width:0;flex:1}
 .salary-tier-copy b{display:block;font-family:"Cormorant Garamond",Georgia,serif;font-size:15px;letter-spacing:.05em;text-transform:capitalize}
 .salary-tier-copy small{display:block;margin-top:2px;color:var(--muted);font-size:9px}
@@ -92,7 +92,7 @@
 .salary-rank-stat b{display:block;margin-top:3px;color:#f4b6c8;font-family:"Cormorant Garamond",Georgia,serif;font-size:15px}
 .salary-rank-stat:nth-child(2) b{color:#6fd3ff}
 .salary-footer{padding:0 clamp(22px,4vw,56px) 26px;color:#947885;font-size:9px;line-height:1.5}
-@media(max-width:1060px){.salary-layout{grid-template-columns:minmax(0,1fr) 320px;gap:20px}.salary-rank-card{padding:19px 16px}.salary-stats{gap:8px}.salary-stat{padding:10px}.salary-stat>div{font-size:9px}.salary-tier-icon{width:50px}}
+@media(max-width:1060px){.salary-layout{grid-template-columns:minmax(0,1fr) 320px;gap:20px}.salary-rank-card{padding:19px 16px}.salary-stats{gap:8px}.salary-stat{padding:10px}.salary-stat>div{font-size:9px}.salary-tier-icon{width:76px}}
 @media(max-width:790px){.salary-header{padding:23px 18px 14px;align-items:flex-start;flex-direction:column;gap:14px}.salary-header-actions{width:100%;align-items:center;flex-wrap:wrap}.salary-user{margin-left:auto}.salary-layout{grid-template-columns:1fr;padding:17px 15px;gap:15px}.salary-rank-card{order:2}.salary-left{order:1}.salary-rank-medal{width:140px;height:140px}.salary-rank-ladder{margin-top:4px}.salary-ladder-rows{min-height:280px}.salary-footer{padding:0 15px 22px}.salary-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.salary-pay-card{padding:20px 18px}.salary-pay-value{font-size:clamp(44px,12vw,65px)}.salary-estimates{flex-direction:column}.salary-estimates>div{padding:12px 14px}.salary-maluses-card{padding:17px 14px}.salary-malus-date{flex-basis:65px}.salary-maluses-list{max-height:260px}}
 @media(max-width:440px){.salary-header-actions{gap:8px}.salary-select-wrap select{min-width:125px}.salary-user{font-size:10px;padding:9px 10px}.salary-header-actions>button{padding:9px}.salary-stat strong{font-size:24px}.salary-malus-row{gap:7px;padding:9px}.salary-malus-date{flex-basis:57px;font-size:9px}.salary-malus-row b{font-size:10px}.salary-rank-card{padding:16px 12px}}
 @media(prefers-reduced-motion:reduce){.salary-petal,.salary-rank-medal,.salary-rank-progress span,.salary-ladder-rows:after{animation:none!important;transition:none!important}.salary-layout{opacity:1;transform:none}}
