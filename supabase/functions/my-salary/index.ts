@@ -52,6 +52,8 @@ Deno.serve(async(req:Request)=>{
     lateGreen:money(rules.lateGreen),lateOrange:money(rules.lateOrange),lateRed:money(rules.lateRed),
     absenceHalf:money(rules.absenceHalf),absenceFull:money(rules.absenceFull)
   };
+  const settings={...configured};
+  let demoDefaultsApplied=false;
   const names=new Set([employee.name,employee.brokerlinkAccountName,employee.brokerlinkId].filter(Boolean).map(normalize));
   const allRows=Array.isArray(state.kpiRows)?state.kpiRows:[];
   const matched=allRows.filter((row:any)=>{
@@ -73,6 +75,10 @@ Deno.serve(async(req:Request)=>{
     ];
     lates=[{date:demoDates[1],minutes:18,level:"orange"},{date:demoDates[2],minutes:6,level:"green"}];
     absences=[];
+    // Example-only reference values. Real caller accounts always use the saved CRM settings unchanged.
+    if(configured.rdv0===0&&configured.rdv1===0&&configured.rdv2===0){configured.rdv0=60000;configured.rdv1=40000;configured.rdv2=20000;demoDefaultsApplied=true;}
+    if(configured.lateGreen===0&&configured.lateOrange===0&&configured.lateRed===0){configured.lateGreen=10000;configured.lateOrange=20000;configured.lateRed=40000;demoDefaultsApplied=true;}
+    if(configured.absenceHalf===0&&configured.absenceFull===0){configured.absenceHalf=45455;configured.absenceFull=90909;demoDefaultsApplied=true;}
   }
   const appointmentAliases=["rdv_pris","rendez_vous","appointments","appointment_count"];
   const openingAliases=["ouverture_validee","ouvertures_validees","ouverture_confirmee","ouvertures_confirmees","signatures_validees","signatures_confirmees","signatures","openings","validated_openings","validated_signatures"];
@@ -124,9 +130,9 @@ Deno.serve(async(req:Request)=>{
   const attendancePercent=demoMode?94:state[attendanceKey]?(Math.max(0,Math.round(100-(absences.length/22*100)))):null;
   const startDate=dateOf(employee.actualStart||employee.date);
   const tenureWeeks=startDate?Math.max(0,Math.floor((Date.now()-new Date(startDate+"T12:00:00Z").getTime())/(7*86400000))):null;
-  const rdvMalusConfigured=[configured.rdv0,configured.rdv1,configured.rdv2].some(v=>v>0);
-  const lateMalusConfigured=[configured.lateGreen,configured.lateOrange,configured.lateRed].some(v=>v>0);
-  const absenceMalusConfigured=[configured.absenceHalf,configured.absenceFull].some(v=>v>0);
+  const rdvMalusConfigured=[settings.rdv0,settings.rdv1,settings.rdv2].some(v=>v>0);
+  const lateMalusConfigured=[settings.lateGreen,settings.lateOrange,settings.lateRed].some(v=>v>0);
+  const absenceMalusConfigured=[settings.absenceHalf,settings.absenceFull].some(v=>v>0);
   return json({
     month,username:profile.username,displayName:profile.display_name,employeeName:employee.name,
     baseSalary,salaryAfterMaluses,totalDeductions,productionMalus,lateMalus,absenceMalus,
@@ -137,7 +143,7 @@ Deno.serve(async(req:Request)=>{
     openingsRemaining:remaining,appointmentsToday:todayRdv,appointmentTarget:target,appointmentsTotal:hasAppointmentData?appointmentTotal:null,
     openingsToday:hasOpeningData?todayOpenings:null,lateCount:lates.length,absenceCount:absences.length,attendancePercent,tenureWeeks,
     missingRdv:hasAppointmentData?missingRdv:null,productionDays:perDay.size,maluses,
-    configuration:configured,
+    configuration:configured,settings,demoDefaultsApplied,
     hasKpiData:hasAppointmentData,hasOpeningData,hasAttendanceData:Object.prototype.hasOwnProperty.call(state,attendanceKey),
     rdvMalusConfigured,lateMalusConfigured,absenceMalusConfigured,demoMode,updatedAt:new Date().toISOString()
   });
