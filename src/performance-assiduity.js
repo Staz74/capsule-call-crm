@@ -125,14 +125,26 @@
       ].filter((item) => item.time).sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")) || a.time.localeCompare(b.time));
       const alertValues = [...crmRows.map((item) => number(item.alerts ?? item.alertCount ?? item.alertes)), ...matchingKpis.map((row) => number(field(row, aliases.alerts)))].filter((value) => value !== null);
       const lateCounts = { green: 0, orange: 0, red: 0 };
+      const manualLateDates = new Set(lates.map(item => dateOf(item.date)).filter(Boolean));
+      const absenceDates = new Set(absences.map(item => dateOf(item.date)).filter(Boolean));
+      const schedule = employee.workSchedule || {};
+      const scheduledStart = schedule.morningStart || schedule.afternoonStart || "";
+      const startMinutes = scheduledStart ? Number(scheduledStart.slice(0,2))*60 + Number(scheduledStart.slice(3,5)) : null;
+      const loginByDate = new Map();
+      logins.forEach(item => { const date=dateOf(item.date), time=timeText(item.time); if(!date||!time)return; const mins=Number(time.slice(0,2))*60+Number(time.slice(3,5)); if(!loginByDate.has(date)||mins<loginByDate.get(date).minutes)loginByDate.set(date,{time,minutes:mins}); });
       lates.forEach((item) => { const minutes = number(item.minutes ?? item.duration) || 0; lateCounts[minutes <= 10 ? "green" : minutes <= 30 ? "orange" : "red"]++; });
+      if(startMinutes!==null) for(const [date,login] of loginByDate){
+        if(manualLateDates.has(date)||absenceDates.has(date))continue;
+        const minutes=login.minutes-startMinutes;if(minutes<=0)continue;
+        const level=minutes<=10?"green":minutes<=30?"orange":"red";lateCounts[level]++;
+      }
       return { employee, firstLogin: logins[0] || null, lateCounts, alerts: alertValues.length ? alertValues.reduce((sum, value) => sum + value, 0) : null, absences };
     }).sort((a, b) => a.employee.name.localeCompare(b.employee.name, "fr"));
     host.innerHTML = records.length ? records.map((row) => '<tr><td><button type="button" class="assiduity-person-link" data-open-performance-profile="' + esc(row.employee.id) + '">' + esc(row.employee.name) + '</button></td><td>' + (row.firstLogin ? '<span>' + esc(row.firstLogin.time) + '</span><small class="assiduity-muted">' + esc(formatDate(row.firstLogin.date)) + '</small>' : '—') + '</td><td><span class="late-count late-green">' + row.lateCounts.green + '</span></td><td><span class="late-count late-orange">' + row.lateCounts.orange + '</span></td><td><span class="late-count late-red">' + row.lateCounts.red + '</span></td><td>' + show(row.alerts) + '</td><td>' + row.absences.length + '</td></tr>').join("") : '<tr><td colspan="7"><div class="empty"><b>Aucun collaborateur sélectionné</b>Sélectionne au moins une personne dans le filtre.</div></td></tr>';
     const unexcused = records.flatMap((row) => row.absences.filter((absence) => normalize(absence.justified) === "non" || normalize(absence.justified).includes("non_justifie")).map((absence) => ({ employee: row.employee, absence }))).sort((a, b) => String(b.absence.date || "").localeCompare(String(a.absence.date || "")));
     absenceHost.innerHTML = unexcused.length ? unexcused.map(({ employee, absence }) => '<tr><td><button type="button" class="assiduity-person-link" data-open-performance-profile="' + esc(employee.id) + '">' + esc(employee.name) + '</button></td><td>' + esc(formatDate(absence.date)) + '</td><td>' + esc(absence.duration || "—") + '</td><td>' + esc(absence.reason || "—") + '</td></tr>').join("") : '<tr><td colspan="4"><div class="empty"><b>Aucune absence non justifiée</b>Seules les absences déclarées comme « Non justifiée » dans la fiche collaborateur apparaissent ici.</div></td></tr>';
     const note = $("#attendanceSourceNote");
-    if (note) note.textContent = (from || to ? "Période : " + (from ? formatDate(from) : "début") + " → " + (to ? formatDate(to) : "aujourd’hui") + ". " : "Période : toutes les dates. ") + "Les retards et absences viennent des déclarations dans les fiches collaborateurs. Les alertes et premières connexions apparaissent uniquement si une source de données les fournit.";
+    if (note) note.textContent = (from || to ? "Période : " + (from ? formatDate(from) : "début") + " → " + (to ? formatDate(to) : "aujourd’hui") + ". " : "Période : toutes les dates. ") + "Les retards incluent les déclarations manuelles et la comparaison de la première connexion Brokerlink avec l’horaire prévu sur la fiche. Les absences restent déclarées manuellement. Les alertes et premières connexions apparaissent uniquement si une source de données les fournit.";
   }
 
   function render() {
