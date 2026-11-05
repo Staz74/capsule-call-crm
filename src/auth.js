@@ -289,6 +289,7 @@
       #crmLoginModeSelector button{border:1px solid #514244;border-radius:11px;padding:11px 10px;background:#211d1d;color:#c5b9b7;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;transition:.18s}
       #crmLoginModeSelector button[aria-pressed="true"]{background:linear-gradient(110deg,#f4d7db,#e8c4ca);border-color:#edc7cd;color:#1b1515;box-shadow:0 4px 15px #0004}
       #crmLoginModeHint{grid-column:1/-1;margin:0;color:#a99c99;font-size:11px;line-height:1.45}
+      .cc-employee-schedule{margin-top:14px}.cc-schedule-form{display:grid;gap:14px;padding:4px 2px 0}.cc-schedule-group{display:grid;gap:8px}.cc-schedule-group>strong{color:#f1d9df;font-size:12px}.cc-schedule-grid{display:grid;grid-template-columns:repeat(2,minmax(120px,1fr));gap:10px}.cc-schedule-field{display:grid;gap:6px;color:#cbbec0;font-size:11px}.cc-schedule-field input{width:100%;min-height:40px;padding:8px 10px;border:1px solid #55464a;border-radius:9px;background:#211c1d;color:#f5e8eb;color-scheme:dark;font:500 13px Inter,system-ui,sans-serif}.cc-schedule-footer{display:flex;align-items:center;justify-content:space-between;gap:12px}.cc-schedule-status{color:#b9a8ab;font-size:11px;line-height:1.45}@media(max-width:600px){.cc-schedule-footer{align-items:stretch;flex-direction:column}.cc-schedule-footer .btn{width:100%}}
       #dashEmployees .person b,#employeesTable .profile-name-button .person b{color:#f3e2e6!important;font-size:13px!important;font-weight:700;line-height:1.35;letter-spacing:.1px;text-shadow:0 1px 3px #0008}
       #ccLoginPetalsCanvas{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:10020;opacity:1;transition:opacity .44s ease}
       #ccLoginTransitionCurtain{position:fixed;inset:0;z-index:10019;display:grid;place-items:center;padding:24px;pointer-events:none;overflow:hidden;background:radial-gradient(ellipse at 50% 45%,rgba(88,43,59,.66),rgba(28,15,21,.92) 72%),rgba(18,10,13,.65);backdrop-filter:blur(9px) saturate(1.12);opacity:0;animation:ccCurtainReveal .48s cubic-bezier(.22,.72,.24,1) forwards}
@@ -393,7 +394,7 @@
       tracked.__ccTracked=true;window[name]=tracked;
     };
     ["openEmployeeProfile","renderProfile","crmOpenEmployeeProfile"].forEach(wrap);
-    const refresh=()=>setTimeout(()=>{renderBrokerlinkEmailCard();renderEmployeeSalaryAccessCard();normalizeProfileAttendanceKpis()},0);
+    const refresh=()=>setTimeout(()=>{renderBrokerlinkEmailCard();renderEmployeeScheduleCard();renderEmployeeSalaryAccessCard();normalizeProfileAttendanceKpis()},0);
     const observe=target=>{if(target&&!target.dataset.ccProfileObserver){new MutationObserver(refresh).observe(target,{childList:true,subtree:true,characterData:true});target.dataset.ccProfileObserver="1"}};
     observe($("profileIdentity"));observe($("profileTitle"));observe($("profileContent"));
     refresh();
@@ -443,6 +444,49 @@
     card.dataset.signature=signature;
     const warning=email?"":'<div class="cc-brokerlink-warning" role="alert">E-mail Brokerlink manquant : les KPI, signatures et premières connexions ne pourront pas être associés à cette fiche.</div>';
     card.innerHTML='<div class="panel-head"><div><div class="panel-title">Lien avec Brokerlink</div><div class="panel-desc">L’adresse e-mail Brokerlink sert à rapprocher les KPI et la première connexion de cette fiche.</div></div></div><div class="cc-brokerlink-body">'+warning+'<form id="ccBrokerlinkEmailForm"><label for="ccBrokerlinkEmailInput">E-mail Brokerlink</label><div class="cc-brokerlink-row"><input id="ccBrokerlinkEmailInput" name="brokerlinkEmail" type="email" autocomplete="email" maxlength="254" required value="'+escapeHtml(email)+'" placeholder="prenom.nom@brokerlink…"><button class="btn primary" type="submit">Enregistrer</button></div><small class="cc-brokerlink-status" aria-live="polite">'+(email?"Adresse liée à cette fiche.":"À renseigner pour activer le rapprochement des données.")+'</small></form></div>';
+  }
+  function renderEmployeeScheduleCard() {
+    if(!currentProfile||currentProfile.role==="caller")return;
+    const host=$("profileIdentity");if(!host)return;
+    let employees=[];try{employees=JSON.parse(localStorage.getItem("capsule_employees")||"[]")}catch{}
+    let employeeId=Number(window.crmSelectedProfileEmployeeId);
+    if(!employeeId){const title=$("profileTitle")?.textContent?.trim();const matches=employees.filter(item=>item.name===title);if(matches.length===1)employeeId=Number(matches[0].id)}
+    const employee=employees.find(item=>Number(item.id)===employeeId);if(!employee)return;
+    let card=$("ccEmployeeWorkSchedule");
+    if(!card){card=document.createElement("section");card.id="ccEmployeeWorkSchedule";card.className="panel cc-employee-schedule";
+      const emailCard=$("ccEmployeeBrokerlinkLink");(emailCard||host).insertAdjacentElement("afterend",card);
+      card.addEventListener("submit",async event=>{
+        const form=event.target;if(form.id!=="ccEmployeeWorkScheduleForm")return;
+        event.preventDefault();
+        const status=form.querySelector(".cc-schedule-status"),button=form.querySelector('button[type="submit"]');
+        const value=name=>String(form.querySelector('[name="'+name+'"]')?.value||"").trim();
+        const schedule={morningStart:value("morningStart"),morningEnd:value("morningEnd"),afternoonStart:value("afternoonStart"),afternoonEnd:value("afternoonEnd")};
+        const pairs=[["morningStart","morningEnd","matin"],["afternoonStart","afternoonEnd","après-midi"]];
+        for(const [start,end,label] of pairs){
+          if(Boolean(schedule[start])!==Boolean(schedule[end])){if(status)status.textContent="Pour le shift "+label+", renseigne l’heure de début et de fin, ou laisse les deux vides.";return}
+          if(schedule[start]&&schedule[end]&&schedule[end]<=schedule[start]){if(status)status.textContent="L’heure de fin doit être après l’heure de début ("+label+").";return}
+        }
+        button.disabled=true;if(status)status.textContent="Enregistrement des horaires…";
+        try{
+          let rows=[];try{rows=JSON.parse(localStorage.getItem("capsule_employees")||"[]")}catch{}
+          const selected=rows.find(item=>Number(item.id)===Number(window.crmSelectedProfileEmployeeId));
+          if(!selected)throw new Error("Fiche collaborateur introuvable. Rouvre-la puis réessaie.");
+          selected.workSchedule=schedule;
+          localStorage.setItem("capsule_employees",JSON.stringify(rows));
+          const pending=queues.get("employees");if(pending)await pending;
+          if(status)status.textContent="Horaires enregistrés et synchronisés. La première connexion sera comparée au premier début de shift renseigné.";
+          card.dataset.signature="";
+          renderEmployeeScheduleCard();window.renderEmployees?.();window.renderDash?.();
+        }catch(error){if(status)status.textContent=error.message||"Impossible d’enregistrer les horaires."}
+        finally{const submit=card.querySelector('button[type="submit"]');if(submit)submit.disabled=false}
+      });
+    }
+    const ws=employee.workSchedule||{},signature=employeeId+":"+["morningStart","morningEnd","afternoonStart","afternoonEnd"].map(key=>ws[key]||"").join("|");
+    if(card.dataset.signature===signature)return;
+    card.dataset.signature=signature;
+    const input=(name,label)=>'<label class="cc-schedule-field">'+label+'<input type="time" name="'+name+'" value="'+escapeHtml(ws[name]||"")+'"></label>';
+    const shift=ws.morningStart||ws.afternoonStart?"Les retards sont calculés depuis le premier shift renseigné (matin, sinon après-midi).":"Aucun shift renseigné : le calcul automatique des retards reste désactivé.";
+    card.innerHTML='<div class="panel-head"><div><div class="panel-title">Horaires prévus</div><div class="panel-desc">Renseigne les heures prévues pour cette personne. Laisse un shift vide s’il ne travaille pas sur cette plage.</div></div></div><form id="ccEmployeeWorkScheduleForm" class="cc-schedule-form"><div class="cc-schedule-group"><strong>Matin</strong><div class="cc-schedule-grid">'+input("morningStart","Début") + input("morningEnd","Fin")+'</div></div><div class="cc-schedule-group"><strong>Après-midi</strong><div class="cc-schedule-grid">'+input("afternoonStart","Reprise") + input("afternoonEnd","Fin")+'</div></div><div class="cc-schedule-footer"><small class="cc-schedule-status" aria-live="polite">'+shift+'</small><button class="btn primary" type="submit">Enregistrer les horaires</button></div></form>';
   }
   function renderEmployeeSalaryAccessCard() {
     if(currentProfile?.role!=="admin")return;
