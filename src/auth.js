@@ -2,7 +2,7 @@
   const cfg = window.CRM_SUPABASE_CONFIG;
   const client = window.supabase.createClient(cfg.url, cfg.publishableKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
   window.crmSupabase = client;
-  let currentUser = null, currentProfile = null, cloudReady = false, bootstrapCodeVisible = false;
+  let currentUser = null, currentProfile = null, cloudReady = false, bootstrapCodeVisible = false, accountCache = [], selectedLoginMode = "staff";
   const queues = new Map(), cloudBase = new Map();
   const $ = (id) => document.getElementById(id);
   const dataKeys = ["employees","candidates","archivedEmployees","archivedCandidates","appPermissions","tasks","taskHistory","qualityHistory","coachingHistory","synthesisActions","onboardingHistory","attendanceHistory","reports","meetings","docs","kpiRows","controlRules"];
@@ -138,6 +138,7 @@
   window.crmCanPage = () => false;
 
   function renderAccountList(users) {
+    accountCache = users || [];
     const table = $("accountUserList"); if (!table) return;
     table.innerHTML = users.length ? users.map((user) => `
       <div class="account-row" data-account-id="${escapeHtml(user.id)}">
@@ -157,7 +158,7 @@
   async function listAccounts() {
     const { data, error } = await client.functions.invoke("manage-accounts", { body: { action:"list" } });
     if (error) throw error;
-    renderAccountList(data?.users || []);
+    renderAccountList(data?.users || []); renderEmployeeSalaryAccessCard();
   }
   async function invokeAdmin(body) {
     const { data, error } = await client.functions.invoke("manage-accounts", { body });
@@ -167,33 +168,8 @@
   }
   function setupCallerAccountFields() {
     const roleSelect = $("newUserRole");
-    if (!roleSelect) return;
-    if (!roleSelect.querySelector('option[value="caller"]')) roleSelect.insertAdjacentHTML("beforeend", '<option value="caller">Collaborateur · Mon salaire</option>');
-    let wrap = $("newCallerEmployeeField");
-    if (!wrap) {
-      wrap = document.createElement("div"); wrap.className = "field"; wrap.id = "newCallerEmployeeField";
-      wrap.innerHTML = '<label for="newCallerEmployee">Fiche collaborateur liée</label><select id="newCallerEmployee" required><option value="">Choisir une fiche active</option></select>';
-      const roleField = roleSelect.closest(".field"); roleField?.insertAdjacentElement("afterend", wrap);
-    }
-    let employees = [];
-    try { employees = JSON.parse(localStorage.getItem("capsule_employees") || "[]"); } catch {}
-    const select = $("newCallerEmployee");
-    if (select) {
-      const selected = select.value, active = employees.filter((employee) => !employee.archivedAt && employee.status !== "Sorti");
-      select.innerHTML = '<option value="">Choisir une fiche active</option>' + active.map((employee) => '<option value="' + escapeHtml(employee.id) + '">' + escapeHtml(employee.name) + '</option>').join("");
-      select.value = selected;
-      if (!active.length) select.innerHTML = '<option value="">Aucune fiche active disponible</option>';
-    }
-    const refresh = () => {
-      const isCaller = roleSelect.value === "caller";
-      wrap.hidden = !isCaller;
-      if (select) select.required = isCaller;
-      const display = $("newDisplayName"), employee = employees.find((item) => String(item.id) === String(select?.value));
-      if (isCaller && employee && display) { display.value = employee.name || display.value; display.readOnly = true; }
-      else if (display) display.readOnly = false;
-    };
-    if (!roleSelect.dataset.callerBound) { roleSelect.addEventListener("change", refresh); select?.addEventListener("change", refresh); roleSelect.dataset.callerBound = "true"; }
-    refresh();
+    roleSelect?.querySelector('option[value="caller"]')?.remove();
+    $("newCallerEmployeeField")?.remove();
   }
   function clearCallerCache() {
     for (let i = localStorage.length - 1; i >= 0; i--) {
@@ -203,16 +179,14 @@
   }
   async function activateCaller(profile) {
     cloudReady = false;
+    clearCallerCache();
     document.body.classList.add("crm-caller");
     if (!document.getElementById("crmCallerIsolationStyle")) {
       const style = document.createElement("style"); style.id = "crmCallerIsolationStyle";
       style.textContent = "body.crm-caller .app,body.crm-caller #authGate,body.crm-caller .modalbg,body.crm-caller .toast{display:none!important}";
       document.head.appendChild(style);
     }
-    if (!sessionStorage.getItem("ccCallerCacheCleared")) {
-      clearCallerCache(); sessionStorage.setItem("ccCallerCacheCleared", "1"); location.reload(); return true;
-    }
-    applyPermissions("caller");
+    document.querySelector(".app")?.remove();
     if ($("authGate")) $("authGate").hidden = true;
     document.body.classList.remove("auth-pending", "workspace-entering");
     if (!document.querySelector('link[href="./src/salary.css"]')) {
@@ -225,7 +199,7 @@
     return true;
   }
   window.crmCallerLogout = async () => {
-    sessionStorage.removeItem("ccCallerCacheCleared"); cloudReady = false;
+    cloudReady = false;
     await client.auth.signOut(); currentUser = currentProfile = null; location.reload();
   };
 
@@ -306,7 +280,123 @@
       storedOriginal.call(localStorage, "capsule_" + key, JSON.stringify(empty));
     }
   };
+  let employeeAccessCard = null;
+  function installLoginAnimationStyles() {
+    if (document.getElementById("ccLoginEffectsStyle")) return;
+    const style=document.createElement("style");style.id="ccLoginEffectsStyle";
+    style.textContent=`
+      #crmLoginModeSelector{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 20px}
+      #crmLoginModeSelector button{border:1px solid #514244;border-radius:11px;padding:11px 10px;background:#211d1d;color:#c5b9b7;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;transition:.18s}
+      #crmLoginModeSelector button[aria-pressed="true"]{background:linear-gradient(110deg,#f4d7db,#e8c4ca);border-color:#edc7cd;color:#1b1515;box-shadow:0 4px 15px #0004}
+      #crmLoginModeHint{grid-column:1/-1;margin:0;color:#a99c99;font-size:11px;line-height:1.45}
+      #ccLoginPetalsCanvas{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:10020;opacity:1;transition:opacity .28s ease}
+      body.cc-transition-active .auth-shell{box-shadow:0 0 60px #f4d7db1a,0 22px 80px #0008}
+      body.cc-transition-active .auth-brand{filter:drop-shadow(0 0 14px #f1c9d288)}
+      .cc-employee-access{margin:0 0 18px!important;border-color:#493c3d!important;background:linear-gradient(140deg,#211c1d,#171515)!important}
+      .cc-employee-access .cc-access-body{padding:14px 18px;display:grid;gap:12px}
+      .cc-employee-access .cc-access-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+      .cc-employee-access input,.cc-employee-access select{width:100%;min-width:0;background:#181515;border:1px solid #514547;border-radius:9px;padding:10px 12px;color:#f5eeee}
+      .cc-employee-access label{display:grid;gap:6px;color:#c5b9b7;font-size:10px}
+      .cc-employee-access .cc-access-note{font-size:11px;color:#b9adab;line-height:1.5;margin:0}
+      .cc-employee-access .cc-access-status{font-size:11px;color:#edc6cc;min-height:16px}
+      .cc-employee-access .cc-access-topline{font-size:11px;color:#d3c4c3}
+      .cc-employee-access .cc-access-topline b{color:#fff}
+      @media(max-width:640px){.cc-employee-access .cc-access-grid{grid-template-columns:1fr}#crmLoginModeSelector{margin-bottom:14px}}
+    `;
+    document.head.appendChild(style);
+  }
+  function setupLoginModePicker() {
+    installLoginAnimationStyles();
+    const pane=$("loginPane"),form=$("loginForm");
+    if(!pane||!form||$("crmLoginModeSelector"))return;
+    const switcher=document.createElement("div");switcher.id="crmLoginModeSelector";switcher.innerHTML='<button type="button" data-login-mode="staff" aria-pressed="true">Gestion du call</button><button type="button" data-login-mode="caller" aria-pressed="false">Accès collaborateur</button><p id="crmLoginModeHint">Connexion à l’espace de gestion de l’équipe.</p>';
+    form.insertAdjacentElement("beforebegin",switcher);
+    const apply=mode=>{
+      selectedLoginMode=mode;
+      switcher.querySelectorAll("[data-login-mode]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.loginMode===mode)));
+      const hint=$("crmLoginModeHint");if(hint)hint.textContent=mode==="caller"?"Accès personnel à la page Mon salaire.":"Connexion à l’espace de gestion de l’équipe.";
+    };
+    switcher.addEventListener("click",event=>{const button=event.target.closest("[data-login-mode]");if(button)apply(button.dataset.loginMode)});
+  }
+  function playCherryTransition(button) {
+    installLoginAnimationStyles();
+    if(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches)return Promise.resolve();
+    document.body.classList.add("cc-transition-active");
+    const canvas=document.createElement("canvas");canvas.id="ccLoginPetalsCanvas";document.body.appendChild(canvas);
+    const ctx=canvas.getContext("2d");
+    if(!ctx){canvas.remove();document.body.classList.remove("cc-transition-active");return Promise.resolve()}
+    const dpr=Math.min(window.devicePixelRatio||1,2),width=window.innerWidth,height=window.innerHeight;
+    canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+    const colors=["#f3b4c3","#ffe3e9","#d95e7d","#f8cbd4"],count=width<700?92:160;
+    const petals=Array.from({length:count},()=>({x:Math.random()*width,y:Math.random()*height,vx:width/1.5+Math.random()*width*.5,vy:18+Math.random()*height*.28,size:4+Math.random()*10,angle:Math.random()*6.28,spin:(Math.random()-.5)*7,phase:Math.random()*6.28,sway:8+Math.random()*30,color:colors[Math.floor(Math.random()*colors.length)],depth:.35+Math.random()*.65}));
+    let raf=0,start=performance.now();const duration=1750;
+    return new Promise(resolve=>{
+      const draw=now=>{
+        const t=Math.min(1,(now-start)/duration),ease=t*t*(3-2*t);
+        ctx.clearRect(0,0,width,height);
+        for(const petal of petals){
+          const x=petal.x-width*.24+petal.vx*ease+Math.sin(t*10+petal.phase)*petal.sway;
+          const y=petal.y+petal.vy*t+Math.sin(t*8+petal.phase)*petal.sway*.65;
+          if(x<-30||x>width+30||y<-30||y>height+30)continue;
+          const flip=Math.abs(Math.cos(petal.angle+t*petal.spin));
+          ctx.save();ctx.globalAlpha=(.45+.5*petal.depth)*(t>.82?(1-t)/.18:1);ctx.translate(x,y);ctx.rotate(petal.angle+t*petal.spin);ctx.scale(Math.max(.12,flip),1);
+          ctx.fillStyle=petal.color;ctx.beginPath();ctx.moveTo(0,petal.size);ctx.bezierCurveTo(-petal.size*1.1,petal.size*.25,-petal.size*.8,-petal.size,0,-petal.size*1.15);ctx.bezierCurveTo(petal.size*.8,-petal.size,petal.size*1.1,petal.size*.25,0,petal.size);ctx.fill();ctx.restore();
+        }
+        if(t<1)raf=requestAnimationFrame(draw);
+        else {cancelAnimationFrame(raf);canvas.style.opacity="0";setTimeout(()=>{canvas.remove();document.body.classList.remove("cc-transition-active");resolve()},280)}
+      };
+      raf=requestAnimationFrame(draw);
+    });
+  }
+  function trackEmployeeProfile() {
+    const wrap=(name)=>{
+      const original=window[name];if(typeof original!=="function"||original.__ccTracked)return;
+      const tracked=function(id,...args){window.crmSelectedProfileEmployeeId=Number(id);const result=original.call(this,id,...args);setTimeout(renderEmployeeSalaryAccessCard,0);return result};
+      tracked.__ccTracked=true;window[name]=tracked;
+    };
+    ["openEmployeeProfile","renderProfile","crmOpenEmployeeProfile"].forEach(wrap);
+    const observe=target=>{if(target&&!target.dataset.ccProfileObserver){new MutationObserver(()=>setTimeout(renderEmployeeSalaryAccessCard,0)).observe(target,{childList:true,subtree:true,characterData:true});target.dataset.ccProfileObserver="1"}};
+    observe($("profileIdentity"));observe($("profileTitle"));
+  }
+  function renderEmployeeSalaryAccessCard() {
+    if(currentProfile?.role!=="admin")return;
+    const host=$("profileIdentity");
+    let employees=[];try{employees=JSON.parse(localStorage.getItem("capsule_employees")||"[]")}catch{}
+    let employeeId=Number(window.crmSelectedProfileEmployeeId);
+    if(!employeeId){const title=$("profileTitle")?.textContent?.trim();const matches=employees.filter(item=>item.name===title);if(matches.length===1)employeeId=Number(matches[0].id)}
+    if(!host||!employeeId)return;
+    const employee=employees.find(item=>Number(item.id)===employeeId);if(!employee)return;
+    const access=accountCache.find(user=>user.role==="caller"&&Number(user.employee_id)===employeeId);
+    let card=$("ccEmployeeSalaryAccess");
+    if(!card){card=document.createElement("section");card.id="ccEmployeeSalaryAccess";card.className="panel cc-employee-access";host.insertAdjacentElement("afterend",card);
+      card.addEventListener("submit",async event=>{
+        event.preventDefault();const form=event.target;
+        if(form.id==="ccCreateEmployeeSalaryAccess"){
+          const username=form.querySelector("[name=username]").value.trim().toLowerCase(),password=form.querySelector("[name=password]").value;
+          const status=form.querySelector(".cc-access-status"),submit=form.querySelector('button[type="submit"]');submit.disabled=true;status.textContent="Création de l’accès…";
+          try{let currentEmployees=[];try{currentEmployees=JSON.parse(localStorage.getItem("capsule_employees")||"[]")}catch{}const selectedId=Number(window.crmSelectedProfileEmployeeId),selectedEmployee=currentEmployees.find(item=>Number(item.id)===selectedId);if(!selectedEmployee)throw new Error("Fiche collaborateur introuvable. Rouvre la fiche et réessaie.");await invokeAdmin({action:"create",username,displayName:selectedEmployee.name,role:"caller",employeeId:selectedId,password});await listAccounts();const updated=$("ccEmployeeSalaryAccess")?.querySelector(".cc-access-status");if(updated)updated.textContent="Accès créé. Transmets l’identifiant et le mot de passe à la personne en privé."}
+          catch(error){status.textContent=error.message||"Impossible de créer cet accès."}
+          finally{const button=$("ccEmployeeSalaryAccess")?.querySelector('button[type="submit"]');if(button)button.disabled=false}
+        }else if(form.id==="ccUpdateEmployeeSalaryAccess"){
+          const password=form.querySelector("[name=password]").value,active=form.querySelector("[name=active]").value==="true",status=form.querySelector(".cc-access-status"),submit=form.querySelector('button[type="submit"]');submit.disabled=true;status.textContent="Enregistrement…";
+          const payload={action:"update",id:form.dataset.accountId,role:"caller",isActive:active};if(password)payload.password=password;
+          try{await invokeAdmin(payload);await listAccounts();const updated=$("ccEmployeeSalaryAccess")?.querySelector(".cc-access-status");if(updated)updated.textContent=password?"Accès mis à jour et mot de passe remplacé.":"Accès mis à jour."}
+          catch(error){status.textContent=error.message||"Impossible de modifier cet accès."}
+          finally{const button=$("ccEmployeeSalaryAccess")?.querySelector('button[type="submit"]');if(button)button.disabled=false}
+        }
+      });
+    }
+    const signature=[employeeId,access?.id||"new",access?.is_active?"active":"off"].join(":");
+    if(card.dataset.signature===signature)return;
+    card.dataset.signature=signature;
+    const body=access
+      ? '<div class="cc-access-topline">Accès Mon salaire : <b>@'+escapeHtml(access.username)+'</b> · '+(access.is_active?"actif":"désactivé")+'</div><form id="ccUpdateEmployeeSalaryAccess" data-account-id="'+escapeHtml(access.id)+'"><div class="cc-access-grid"><label>Statut de l’accès<select name="active"><option value="true" '+(access.is_active?"selected":"")+'>Actif</option><option value="false" '+(!access.is_active?"selected":"")+'>Désactivé</option></select></label><label>Remplacer le mot de passe (facultatif)<input name="password" type="password" minlength="8" maxlength="72" autocomplete="new-password" placeholder="8 caractères minimum"></label></div><p class="cc-access-note">L’identifiant actuel est @'+escapeHtml(access.username)+'. Communique tout nouveau mot de passe directement au collaborateur.</p><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px"><button class="btn primary" type="submit">Enregistrer l’accès</button><span class="cc-access-status" aria-live="polite"></span></div></form>'
+      : '<form id="ccCreateEmployeeSalaryAccess"><div class="cc-access-grid"><label>Identifiant à communiquer<input name="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,31}" autocomplete="username" value="'+escapeHtml(String(employee.name||"collaborateur").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9._-]+/g,".").replace(/^[^a-z0-9]+|[^a-z0-9]+$/g,"").slice(0,32)||"collaborateur")+'"></label><label>Mot de passe temporaire<input name="password" type="password" required minlength="8" maxlength="72" autocomplete="new-password" placeholder="8 caractères minimum"></label></div><p class="cc-access-note">Cet accès ouvrira uniquement la page Mon salaire associée à la fiche de '+escapeHtml(employee.name)+'.</p><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px"><button class="btn primary" type="submit">Créer l’accès Mon salaire</button><span class="cc-access-status" aria-live="polite"></span></div></form>';
+    card.innerHTML='<div class="panel-head"><div><div class="panel-title">Accès collaborateur · Mon salaire</div><div class="panel-desc">Crée et gère l’accès personnel lié à cette fiche.</div></div></div><div class="cc-access-body">'+body+'</div>';
+  }
+
   document.addEventListener("DOMContentLoaded", async () => {
+    setupLoginModePicker(); trackEmployeeProfile();
     $("loginForm")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = $("loginForm"), button = form.querySelector('button[type="submit"]');
@@ -331,8 +421,18 @@
           document.body.classList.remove("auth-pending");
           return;
         }
+        const isCallerAccount = data.session?.user?.app_metadata?.role === "caller";
+        if ((selectedLoginMode === "caller") !== isCallerAccount) {
+          await client.auth.signOut();
+          showMessage("loginMessage", selectedLoginMode === "caller" ? "Ce compte n’est pas un accès collaborateur. Choisis Gestion du call." : "Ce compte est réservé à Mon salaire. Choisis Accès collaborateur.");
+          setBusy(false);
+          document.body.classList.remove("auth-pending");
+          return;
+        }
         showMessage("loginMessage", "Ouverture de votre espace…", false);
+        const transition = playCherryTransition(button);
         const activated = await activate(data.session);
+        await transition;
         if (!activated) {
           setBusy(false);
           document.body.classList.remove("auth-pending", "workspace-entering");
@@ -414,7 +514,7 @@
       event.preventDefault();
       showMessage("accountMessage", "Création du compte…", false);
       try {
-        await invokeAdmin({ action:"create", username:$("newUsername").value.trim().toLowerCase(), displayName:$("newDisplayName").value.trim(), role:$("newUserRole").value, employeeId:$("newUserRole").value === "caller" ? Number($("newCallerEmployee")?.value) : undefined, password:$("newUserPassword").value });
+        await invokeAdmin({ action:"create", username:$("newUsername").value.trim().toLowerCase(), displayName:$("newDisplayName").value.trim(), role:$("newUserRole").value, password:$("newUserPassword").value });
         $("createStaffAccount").reset(); await listAccounts(); showMessage("accountMessage", "Accès créé. Transmets l’identifiant et le mot de passe à la personne concernée.", false);
       } catch (error) { showMessage("accountMessage", error.message); }
     });
