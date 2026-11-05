@@ -100,7 +100,7 @@
   }
   function render(data,host){
     const notice=host.querySelector("#salaryNotice");
-    if(data.demoMode){notice.innerHTML='<b>EXEMPLE · DONNÉES FICTIVES</b><span>Simulation pour Christelle, non enregistrée dans les historiques. Les montants de malus suivent les valeurs des Paramètres.</span>'+((!data.rdvMalusConfigured||!data.lateMalusConfigured||!data.absenceMalusConfigured)?'<span>Un ou plusieurs montants de malus sont réglés à 0 Ar dans Contrôle & règles.</span>':"");notice.className="salary-notice demo"}
+    if(data.demoMode){notice.innerHTML='<b>EXEMPLE · DONNÉES FICTIVES</b><span>Simulation pour Christelle, non enregistrée dans les historiques. Les montants de malus suivent les valeurs des Paramètres.</span>'+((!data.rdvMalusConfigured||!data.lateMalusConfigured||!data.absenceMalusConfigured)?'<span>Dans cet exemple uniquement, les montants réglés à 0 Ar utilisent la grille de référence. Les comptes réels suivent strictement les valeurs de Contrôle & règles.</span>':"");notice.className="salary-notice demo"}
     else if(!data.hasKpiData||!data.hasOpeningData){notice.textContent="Estimation partielle · le montant de base vient des Paramètres; les indicateurs manquants seront ajoutés après import des données Brokerlink.";notice.className="salary-notice partial"}
     else{notice.textContent="Données KPI et paramètres du mois pris en compte.";notice.className="salary-notice complete"}
     host.querySelector("#salaryStats").innerHTML=stats(data);
