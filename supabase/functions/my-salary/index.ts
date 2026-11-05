@@ -83,6 +83,29 @@ Deno.serve(async(req:Request)=>{
     if(configured.lateGreen===0&&configured.lateOrange===0&&configured.lateRed===0){configured.lateGreen=10000;configured.lateOrange=20000;configured.lateRed=40000;demoDefaultsApplied=true;}
     if(configured.absenceHalf===0&&configured.absenceFull===0){configured.absenceHalf=45455;configured.absenceFull=90909;demoDefaultsApplied=true;}
   }
+  const schedule=employee.workSchedule&&typeof employee.workSchedule==="object"?employee.workSchedule:{};
+  const scheduledStart=String(schedule.morningStart||schedule.afternoonStart||"");
+  const scheduledStartMinutes=scheduledStart?Number(scheduledStart.slice(0,2))*60+Number(scheduledStart.slice(3,5)):null;
+  if(scheduledStartMinutes!==null){
+    const manualLateDates=new Set(lates.map((item:any)=>dateOf(item.date)));
+    const absenceDates=new Set(absences.map((item:any)=>dateOf(item.date)));
+    const firstLoginByDate=new Map<string,string>();
+    const addLogin=(dateValue:unknown,timeValue:unknown)=>{
+      const d=dateOf(dateValue),raw=String(timeValue??"").trim(),match=raw.match(/(?:^|T|\s)(\d{1,2}:\d{2})/);
+      if(!d||d<monthStart||d>monthEnd||!match)return;
+      const time=match[1].padStart(5,"0"),previous=firstLoginByDate.get(d);
+      if(!previous||time<previous)firstLoginByDate.set(d,time);
+    };
+    for(const row of monthRows)addLogin(field(row,["date","jour","date_activite","created_at"]),field(row,["premiere_connexion","first_login","heure_premiere_connexion","h_1ere_co","first_connection"]));
+    for(const row of Array.isArray(attendance.crm)?attendance.crm:[])addLogin(row.date,row.firstLogin||row.first_login||row.firstConnection||row.h_1ere_co);
+    for(const [d,time] of firstLoginByDate){
+      if(manualLateDates.has(d)||absenceDates.has(d))continue;
+      const [hours,minutes]=time.split(":").map(Number),delay=hours*60+minutes-scheduledStartMinutes;
+      if(delay<=0)continue;
+      const level=delay<=10?"green":delay<=30?"orange":"red";
+      lates.push({date:d,minutes:delay,level,source:"schedule"});
+    }
+  }
   const appointmentAliases=["rdv_pris","rendez_vous","appointments","appointment_count"];
   const openingAliases=["ouverture_validee","ouvertures_validees","ouverture_confirmee","ouvertures_confirmees","signature_confirmee","signatures_confirmees","signatures_validees","confirmed_signatures","validated_signatures","signed_accounts","signatures","openings","validated_openings"];
   const perDay=new Map<string,number>(),opensByDay=new Map<string,number>();
