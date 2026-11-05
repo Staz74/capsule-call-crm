@@ -289,7 +289,19 @@
       #crmLoginModeSelector button{border:1px solid #514244;border-radius:11px;padding:11px 10px;background:#211d1d;color:#c5b9b7;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;transition:.18s}
       #crmLoginModeSelector button[aria-pressed="true"]{background:linear-gradient(110deg,#f4d7db,#e8c4ca);border-color:#edc7cd;color:#1b1515;box-shadow:0 4px 15px #0004}
       #crmLoginModeHint{grid-column:1/-1;margin:0;color:#a99c99;font-size:11px;line-height:1.45}
-      #ccLoginPetalsCanvas{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:10020;opacity:1;transition:opacity .28s ease}
+      #dashEmployees .person b,#employeesTable .profile-name-button .person b{color:#f3e2e6!important;font-size:13px!important;font-weight:700;line-height:1.35;letter-spacing:.1px;text-shadow:0 1px 3px #0008}
+      #ccLoginPetalsCanvas{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:10020;opacity:1;transition:opacity .44s ease}
+      #ccLoginTransitionCurtain{position:fixed;inset:0;z-index:10019;display:grid;place-items:center;padding:24px;pointer-events:none;overflow:hidden;background:radial-gradient(ellipse at 50% 45%,rgba(88,43,59,.66),rgba(28,15,21,.92) 72%),rgba(18,10,13,.65);backdrop-filter:blur(9px) saturate(1.12);opacity:0;animation:ccCurtainReveal .48s cubic-bezier(.22,.72,.24,1) forwards}
+      #ccLoginTransitionCurtain:before,#ccLoginTransitionCurtain:after{content:"";position:absolute;left:50%;top:50%;width:min(76vw,720px);aspect-ratio:1;border:1px solid rgba(255,211,224,.13);border-radius:50%;transform:translate(-50%,-50%) scale(.35);animation:ccSakuraBloom 1.9s cubic-bezier(.16,.72,.25,1) both}
+      #ccLoginTransitionCurtain:after{width:min(96vw,900px);animation-delay:.12s;border-color:rgba(255,211,224,.075)}
+      .cc-transition-copy{position:relative;z-index:1;display:grid;justify-items:center;gap:10px;text-align:center;color:#f8e9ed;animation:ccTransitionRise .55s .08s cubic-bezier(.2,.72,.18,1) both}
+      .cc-transition-mark{width:52px;height:52px;display:grid;place-items:center;border:1px solid #f3c5d1;border-radius:50%;background:radial-gradient(circle,#633b4a,#25131b);color:#ffe6ec;font:28px/1 Georgia,serif;box-shadow:0 0 30px #efb6c544;animation:ccFlowerTurn 3s ease-in-out infinite}
+      .cc-transition-copy small{font:700 9px/1 Inter,system-ui,sans-serif;letter-spacing:.24em;text-transform:uppercase;color:#e5bac5}
+      .cc-transition-copy strong{font:600 clamp(22px,3vw,30px)/1.15 "Playfair Display",Georgia,serif;letter-spacing:.01em}
+      .cc-transition-copy span{font:500 12px/1.4 Inter,system-ui,sans-serif;color:#cfb8bf}
+      .cc-transition-track{width:150px;height:3px;margin-top:7px;overflow:hidden;border-radius:99px;background:#f6d7e124}
+      .cc-transition-track i{display:block;width:38%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#c95c7a,#ffe0e8);box-shadow:0 0 12px #f2a0b899;animation:ccTransitionTrack 1.15s ease-in-out infinite}
+      #ccLoginTransitionCurtain.cc-transition-leaving{opacity:0;transition:opacity .48s ease}
       body.cc-transition-active .auth-shell{box-shadow:0 0 60px #f4d7db1a,0 22px 80px #0008}
       body.cc-transition-active .auth-brand{filter:drop-shadow(0 0 14px #f1c9d288)}
       .cc-employee-access{margin:0 0 18px!important;border-color:#493c3d!important;background:linear-gradient(140deg,#211c1d,#171515)!important}
@@ -301,7 +313,13 @@
       .cc-employee-access .cc-access-status{font-size:11px;color:#edc6cc;min-height:16px}
       .cc-employee-access .cc-access-topline{font-size:11px;color:#d3c4c3}
       .cc-employee-access .cc-access-topline b{color:#fff}
-      @media(max-width:640px){.cc-employee-access .cc-access-grid{grid-template-columns:1fr}#crmLoginModeSelector{margin-bottom:14px}}
+      @keyframes ccCurtainReveal{from{opacity:0}to{opacity:1}}
+      @keyframes ccSakuraBloom{0%{opacity:0;transform:translate(-50%,-50%) scale(.3)}45%{opacity:.72}100%{opacity:0;transform:translate(-50%,-50%) scale(1.18)}}
+      @keyframes ccTransitionRise{from{opacity:0;transform:translateY(16px) scale(.96);filter:blur(4px)}to{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}}
+      @keyframes ccFlowerTurn{0%,100%{transform:rotate(-8deg) scale(.96)}50%{transform:rotate(8deg) scale(1.05)}}
+      @keyframes ccTransitionTrack{0%{transform:translateX(-115%)}100%{transform:translateX(285%)}}
+      @media(max-width:640px){.cc-employee-access .cc-access-grid{grid-template-columns:1fr}#crmLoginModeSelector{margin-bottom:14px}.cc-transition-copy{gap:8px}}
+      @media(prefers-reduced-motion:reduce){#ccLoginTransitionCurtain:before,#ccLoginTransitionCurtain:after,.cc-transition-copy,.cc-transition-mark,.cc-transition-track i{animation:none!important}#ccLoginTransitionCurtain{transition:none!important}}
     `;
     document.head.appendChild(style);
   }
@@ -322,28 +340,40 @@
     installLoginAnimationStyles();
     if(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches)return Promise.resolve();
     document.body.classList.add("cc-transition-active");
+    const curtain=document.createElement("div");
+    curtain.id="ccLoginTransitionCurtain";
+    const destination=selectedLoginMode==="caller"?"Ouverture de Mon salaire":"Ouverture de ton espace de travail";
+    curtain.innerHTML='<div class="cc-transition-copy"><i class="cc-transition-mark" aria-hidden="true">✿</i><small>Capsule Call · Sakura</small><strong>'+destination+'</strong><span>Préparation de tes indicateurs…</span><div class="cc-transition-track" aria-hidden="true"><i></i></div></div>';
+    document.body.appendChild(curtain);
     const canvas=document.createElement("canvas");canvas.id="ccLoginPetalsCanvas";document.body.appendChild(canvas);
     const ctx=canvas.getContext("2d");
-    if(!ctx){canvas.remove();document.body.classList.remove("cc-transition-active");return Promise.resolve()}
+    if(!ctx){canvas.remove();curtain.remove();document.body.classList.remove("cc-transition-active");return Promise.resolve()}
     const dpr=Math.min(window.devicePixelRatio||1,2),width=window.innerWidth,height=window.innerHeight;
     canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
-    const colors=["#f3b4c3","#ffe3e9","#d95e7d","#f8cbd4"],count=width<700?92:160;
-    const petals=Array.from({length:count},()=>({x:Math.random()*width,y:Math.random()*height,vx:width/1.5+Math.random()*width*.5,vy:18+Math.random()*height*.28,size:4+Math.random()*10,angle:Math.random()*6.28,spin:(Math.random()-.5)*7,phase:Math.random()*6.28,sway:8+Math.random()*30,color:colors[Math.floor(Math.random()*colors.length)],depth:.35+Math.random()*.65}));
-    let raf=0,start=performance.now();const duration=1750;
+    const colors=["#f3b4c3","#ffe3e9","#d95e7d","#f8cbd4"],count=width<700?100:190;
+    const petals=Array.from({length:count},()=>({x:Math.random()*width,y:Math.random()*height,vx:width*.68+Math.random()*width*.36,vy:18+Math.random()*height*.28,size:4+Math.random()*11,angle:Math.random()*6.28,spin:(Math.random()-.5)*8,phase:Math.random()*6.28,sway:12+Math.random()*38,color:colors[Math.floor(Math.random()*colors.length)],depth:.35+Math.random()*.65}));
+    let raf=0,start=performance.now();const duration=2050;
     return new Promise(resolve=>{
       const draw=now=>{
         const t=Math.min(1,(now-start)/duration),ease=t*t*(3-2*t);
         ctx.clearRect(0,0,width,height);
+        const bloom=Math.sin(Math.PI*t);
+        ctx.save();ctx.globalAlpha=.14*bloom;ctx.strokeStyle="#ffdce5";ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.arc(width*.5,height*.47,Math.max(12,ease*Math.min(width,height)*.76),0,Math.PI*2);ctx.stroke();ctx.restore();
         for(const petal of petals){
-          const x=petal.x-width*.24+petal.vx*ease+Math.sin(t*10+petal.phase)*petal.sway;
+          const x=petal.x-width*.24+petal.vx*ease+Math.sin(t*10+petal.phase)*petal.sway+Math.sin(Math.PI*t+petal.phase)*18;
           const y=petal.y+petal.vy*t+Math.sin(t*8+petal.phase)*petal.sway*.65;
           if(x<-30||x>width+30||y<-30||y>height+30)continue;
           const flip=Math.abs(Math.cos(petal.angle+t*petal.spin));
-          ctx.save();ctx.globalAlpha=(.45+.5*petal.depth)*(t>.82?(1-t)/.18:1);ctx.translate(x,y);ctx.rotate(petal.angle+t*petal.spin);ctx.scale(Math.max(.12,flip),1);
+          ctx.save();ctx.globalAlpha=(.42+.52*petal.depth)*(t>.78?(1-t)/.22:1);ctx.translate(x,y);ctx.rotate(petal.angle+t*petal.spin);ctx.scale(Math.max(.12,flip),1);
           ctx.fillStyle=petal.color;ctx.beginPath();ctx.moveTo(0,petal.size);ctx.bezierCurveTo(-petal.size*1.1,petal.size*.25,-petal.size*.8,-petal.size,0,-petal.size*1.15);ctx.bezierCurveTo(petal.size*.8,-petal.size,petal.size*1.1,petal.size*.25,0,petal.size);ctx.fill();ctx.restore();
         }
         if(t<1)raf=requestAnimationFrame(draw);
-        else {cancelAnimationFrame(raf);canvas.style.opacity="0";setTimeout(()=>{canvas.remove();document.body.classList.remove("cc-transition-active");resolve()},280)}
+        else {
+          cancelAnimationFrame(raf);
+          canvas.style.opacity="0";curtain.classList.add("cc-transition-leaving");
+          setTimeout(()=>{canvas.remove();curtain.remove();document.body.classList.remove("cc-transition-active");resolve()},500);
+        }
       };
       raf=requestAnimationFrame(draw);
     });
