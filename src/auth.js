@@ -447,14 +447,14 @@
   }
   function renderEmployeeScheduleCard() {
     if(!currentProfile||currentProfile.role==="caller")return;
-    const host=$("profileIdentity");if(!host)return;
+    const host=$("profileContent"),container=host?.querySelector(".attendance-crm-card");if(!container)return;
     let employees=[];try{employees=JSON.parse(localStorage.getItem("capsule_employees")||"[]")}catch{}
     let employeeId=Number(window.crmSelectedProfileEmployeeId);
     if(!employeeId){const title=$("profileTitle")?.textContent?.trim();const matches=employees.filter(item=>item.name===title);if(matches.length===1)employeeId=Number(matches[0].id)}
     const employee=employees.find(item=>Number(item.id)===employeeId);if(!employee)return;
     let card=$("ccEmployeeWorkSchedule");
     if(!card){card=document.createElement("section");card.id="ccEmployeeWorkSchedule";card.className="panel cc-employee-schedule";
-      const emailCard=$("ccEmployeeBrokerlinkLink");(emailCard||host).insertAdjacentElement("afterend",card);
+      container.append(card);
       card.addEventListener("submit",async event=>{
         const form=event.target;if(form.id!=="ccEmployeeWorkScheduleForm")return;
         event.preventDefault();
@@ -481,6 +481,7 @@
         finally{const submit=card.querySelector('button[type="submit"]');if(submit)submit.disabled=false}
       });
     }
+    if(card.parentElement!==container)container.append(card);
     const ws=employee.workSchedule||{},signature=employeeId+":"+["morningStart","morningEnd","afternoonStart","afternoonEnd"].map(key=>ws[key]||"").join("|");
     if(card.dataset.signature===signature)return;
     card.dataset.signature=signature;
