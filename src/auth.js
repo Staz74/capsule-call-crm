@@ -115,11 +115,12 @@
       rh: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","documents"],
       directeur_operationnel:["synthesis"],
       imperator:["synthesis"],
+      caller:["salary"],
       chef_plateau: ["dashboard","employees","profile","onboarding","performance","quality","tasks","reports"]
     };
     let configured = null;
     try { const saved = JSON.parse(localStorage.getItem("capsule_appPermissions") || "{}")?.moduleAccess?.[role]; if (Array.isArray(saved)) configured = saved; } catch {}
-    const requested = configured || pages[role] || []; const allowed = role === "admin" ? pages.admin : [...new Set(requested.map((page) => page === "kpi" || page === "assiduity" ? "performance" : page))];
+    const requested = configured || pages[role] || []; const allowed = role === "admin" ? pages.admin : role === "caller" ? pages.caller : [...new Set(requested.map((page) => page === "kpi" || page === "assiduity" ? "performance" : page))];
     const uploadControls = document.querySelector(".doc-upload-controls"); if (uploadControls) uploadControls.hidden = !(role === "admin" || role === "rh");
     document.querySelectorAll("#nav [data-page]").forEach((button) => { button.hidden = !allowed.includes(button.dataset.page); });
     document.querySelectorAll("[data-admin-only]").forEach((element) => { element.hidden = role !== "admin"; });
@@ -140,12 +141,13 @@
     const table = $("accountUserList"); if (!table) return;
     table.innerHTML = users.length ? users.map((user) => `
       <div class="account-row" data-account-id="${escapeHtml(user.id)}">
-        <div><b>${escapeHtml(user.display_name)}</b><small>@${escapeHtml(user.username)}</small></div>
+        <div><b>${escapeHtml(user.display_name)}</b><small>@${escapeHtml(user.username)}${user.role === "caller" ? " · fiche #" + escapeHtml(user.employee_id) : ""}</small></div>
         <label class="account-field"><span>Rôle</span><select data-account-role>
           <option value="rh" ${user.role === "rh" ? "selected" : ""}>RH</option>
           <option value="chef_plateau" ${user.role === "chef_plateau" ? "selected" : ""}>Chef de plateau</option>
           <option value="directeur_operationnel" ${user.role === "directeur_operationnel" ? "selected" : ""}>Directeur opérationnel</option>
           <option value="imperator" ${user.role === "imperator" ? "selected" : ""}>Imperator</option>
+          ${user.role === "caller" ? '<option value="caller" selected>Collaborateur · Mon salaire</option>' : ""}
         </select></label>
         <label class="account-field"><span>Accès</span><select data-account-active><option value="true" ${user.is_active ? "selected" : ""}>Actif</option><option value="false" ${!user.is_active ? "selected" : ""}>Désactivé</option></select></label>
         <button class="btn account-save" type="button" data-save-account>Enregistrer</button>
@@ -163,10 +165,74 @@
     if (data?.error) throw new Error(data.error);
     return data;
   }
+  function setupCallerAccountFields() {
+    const roleSelect = $("newUserRole");
+    if (!roleSelect) return;
+    if (!roleSelect.querySelector('option[value="caller"]')) roleSelect.insertAdjacentHTML("beforeend", '<option value="caller">Collaborateur · Mon salaire</option>');
+    let wrap = $("newCallerEmployeeField");
+    if (!wrap) {
+      wrap = document.createElement("div"); wrap.className = "field"; wrap.id = "newCallerEmployeeField";
+      wrap.innerHTML = '<label for="newCallerEmployee">Fiche collaborateur liée</label><select id="newCallerEmployee" required><option value="">Choisir une fiche active</option></select>';
+      const roleField = roleSelect.closest(".field"); roleField?.insertAdjacentElement("afterend", wrap);
+    }
+    let employees = [];
+    try { employees = JSON.parse(localStorage.getItem("capsule_employees") || "[]"); } catch {}
+    const select = $("newCallerEmployee");
+    if (select) {
+      const selected = select.value, active = employees.filter((employee) => !employee.archivedAt && employee.status !== "Sorti");
+      select.innerHTML = '<option value="">Choisir une fiche active</option>' + active.map((employee) => '<option value="' + escapeHtml(employee.id) + '">' + escapeHtml(employee.name) + '</option>').join("");
+      select.value = selected;
+      if (!active.length) select.innerHTML = '<option value="">Aucune fiche active disponible</option>';
+    }
+    const refresh = () => {
+      const isCaller = roleSelect.value === "caller";
+      wrap.hidden = !isCaller;
+      if (select) select.required = isCaller;
+      const display = $("newDisplayName"), employee = employees.find((item) => String(item.id) === String(select?.value));
+      if (isCaller && employee && display) { display.value = employee.name || display.value; display.readOnly = true; }
+      else if (display) display.readOnly = false;
+    };
+    if (!roleSelect.dataset.callerBound) { roleSelect.addEventListener("change", refresh); select?.addEventListener("change", refresh); roleSelect.dataset.callerBound = "true"; }
+    refresh();
+  }
+  function clearCallerCache() {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith("capsule_") || key.startsWith("cc_attendance_") || key.startsWith("cc_onboarding_steps_"))) removedOriginal.call(localStorage, key);
+    }
+  }
+  async function activateCaller(profile) {
+    cloudReady = false;
+    document.body.classList.add("crm-caller");
+    if (!document.getElementById("crmCallerIsolationStyle")) {
+      const style = document.createElement("style"); style.id = "crmCallerIsolationStyle";
+      style.textContent = "body.crm-caller .app,body.crm-caller #authGate,body.crm-caller .modalbg,body.crm-caller .toast{display:none!important}";
+      document.head.appendChild(style);
+    }
+    if (!sessionStorage.getItem("ccCallerCacheCleared")) {
+      clearCallerCache(); sessionStorage.setItem("ccCallerCacheCleared", "1"); location.reload(); return true;
+    }
+    applyPermissions("caller");
+    if ($("authGate")) $("authGate").hidden = true;
+    document.body.classList.remove("auth-pending", "workspace-entering");
+    if (!document.querySelector('link[href="./src/salary.css"]')) {
+      const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "./src/salary.css"; document.head.appendChild(css);
+    }
+    if (!window.crmMountSalary) await new Promise((resolve, reject) => {
+      const script = document.createElement("script"); script.src = "./src/salary.js"; script.onload = resolve; script.onerror = reject; document.head.appendChild(script);
+    });
+    window.crmMountSalary(profile);
+    return true;
+  }
+  window.crmCallerLogout = async () => {
+    sessionStorage.removeItem("ccCallerCacheCleared"); cloudReady = false;
+    await client.auth.signOut(); currentUser = currentProfile = null; location.reload();
+  };
+
   async function activate(session) {
     const user = session?.user;
     if (!user) return false;
-    const { data: profile, error } = await client.from("crm_profiles").select("id,username,display_name,role,is_active").eq("id", user.id).maybeSingle();
+    const { data: profile, error } = await client.from("crm_profiles").select("id,username,display_name,role,is_active,employee_id").eq("id", user.id).maybeSingle();
     if (error || !profile || !profile.is_active || profile.role !== user.app_metadata?.role) {
       await client.auth.signOut();
       currentUser = currentProfile = null;
@@ -175,6 +241,8 @@
       return false;
     }
     currentUser = user; currentProfile = profile;
+    if (profile.role === "caller") return await activateCaller(profile);
+    sessionStorage.removeItem("ccCallerCacheCleared");
     const displayNameField = $("ownDisplayName"); if (displayNameField) displayNameField.value = profile.display_name || "";
     const usernameField = $("ownUsername"); if (usernameField) usernameField.value = profile.username || "";
     const dashboardGreeting = document.querySelector("#screen-dashboard .head h1"), firstName = String(profile.display_name || profile.username || "").trim().split(/\s+/)[0];
@@ -207,7 +275,7 @@
     }
     document.body.classList.remove("auth-pending", "workspace-entering");
     $("loginForm")?.classList.remove("auth-submitting");
-    if (profile.role === "admin") listAccounts().catch((e) => { console.error(e); showMessage("accountMessage", e.message, true); });
+    if (profile.role === "admin") { setupCallerAccountFields(); listAccounts().catch((e) => { console.error(e); showMessage("accountMessage", e.message, true); }); }
     return true;
   }
 
@@ -346,7 +414,7 @@
       event.preventDefault();
       showMessage("accountMessage", "Création du compte…", false);
       try {
-        await invokeAdmin({ action:"create", username:$("newUsername").value.trim().toLowerCase(), displayName:$("newDisplayName").value.trim(), role:$("newUserRole").value, password:$("newUserPassword").value });
+        await invokeAdmin({ action:"create", username:$("newUsername").value.trim().toLowerCase(), displayName:$("newDisplayName").value.trim(), role:$("newUserRole").value, employeeId:$("newUserRole").value === "caller" ? Number($("newCallerEmployee")?.value) : undefined, password:$("newUserPassword").value });
         $("createStaffAccount").reset(); await listAccounts(); showMessage("accountMessage", "Accès créé. Transmets l’identifiant et le mot de passe à la personne concernée.", false);
       } catch (error) { showMessage("accountMessage", error.message); }
     });
