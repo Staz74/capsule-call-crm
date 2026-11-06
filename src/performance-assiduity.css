@@ -58,3 +58,7 @@
   .performance-picker-menu{width:100%;max-width:100%;left:0}
   .performance-picker-options{max-height:min(44vh,300px)}
 }
+
+.performance-picker-options label{display:flex!important;flex-direction:row!important;justify-content:flex-start!important;align-items:center!important;gap:9px!important;text-align:left!important}
+.performance-picker-options label>input[type="checkbox"]{appearance:auto;width:15px!important;height:15px!important;min-width:15px!important;max-width:15px!important;position:static!important;inset:auto!important;margin:0!important;padding:0!important;flex:0 0 15px!important;align-self:center!important}
+.performance-picker-options label>span{display:block;flex:1 1 auto;min-width:0;text-align:left}
