@@ -10,7 +10,7 @@
     {name:"GOLD",min:5,coefficient:.5,color:"#f6d27a",dark:"#6e4a12",glow:"#f2c14e",icon:"gold",image:"/assets/ranks/gold.png"},
     {name:"IRON",min:0,coefficient:.25,color:"#b9c2d9",dark:"#262120",glow:"#c9a27e",icon:"iron",image:"/assets/ranks/iron.webp"}
   ];
-  let currentProfile=null,requestNumber=0,accessMonitor=null,accessVisibilityBound=false;
+  let currentProfile=null,requestNumber=0,accessMonitor=null,accessVisibilityBound=false,accessCheckRunning=false;
   const personFirst=name=>String(name||"").trim().split(/\s+/)[0]||"";
 
   function crest(rank,size=78){
@@ -56,6 +56,24 @@
     render(data,host);host.classList.add("salary-entered");
   }
 
+  async function checkCallerAccess(){
+    if(accessCheckRunning||!currentProfile)return;
+    accessCheckRunning=true;
+    try{
+      const {data,error}=await window.crmSupabase.functions.invoke("manage-accounts",{body:{action:"check-caller-access"}});
+      if(error||data?.error){
+        const status=error?.context?.status||error?.status;
+        const message=data?.error||"";
+        if(status===401||status===403||/n’est plus actif/i.test(message)){
+          const notice=document.querySelector("#salaryNotice");
+          if(notice)notice.textContent="Cet accès Mon Salaire n’est plus actif. Fermeture de la session…";
+          if(accessMonitor){clearInterval(accessMonitor);accessMonitor=null}
+          setTimeout(()=>window.crmCallerLogout?.(),500);
+        }
+      }
+    }catch(error){console.warn("Vérification de l’accès Mon Salaire impossible.",error)}
+    finally{accessCheckRunning=false}
+  }
   function stats(data){
     const rdv=data.appointmentsToday==null?"—":data.appointmentsToday+" / "+data.appointmentTarget;
     const tardies=data.demoMode||data.hasAttendanceData?String(data.lateCount):"—";
@@ -117,7 +135,7 @@
   }
   window.crmMountSalary=profile=>{
     currentProfile=profile;const host=portalShell(profile);host.querySelector("#salaryUserTag").textContent="@"+(profile.username||"")+" · CALLER";load();
-    if(!accessMonitor)accessMonitor=window.setInterval(()=>{if(document.visibilityState==="visible")load()},15000);
-    if(!accessVisibilityBound){document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")load()});accessVisibilityBound=true}
+    if(!accessMonitor)accessMonitor=window.setInterval(()=>{if(document.visibilityState==="visible")checkCallerAccess()},30000);
+    if(!accessVisibilityBound){document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkCallerAccess()});accessVisibilityBound=true}
   };
 })();
