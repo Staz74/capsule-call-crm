@@ -120,6 +120,27 @@
     setSync("Synchronisé");
   }
 
+  function refreshAppStateIfStale() {
+    const state = typeof window.crmGetLocalState === "function" ? window.crmGetLocalState() : null;
+    if (!state) return false;
+    let stale = false;
+    for (const key of dataKeys) {
+      let cached = null;
+      try {
+        const raw = localStorage.getItem("capsule_" + key);
+        cached = raw === null ? null : JSON.parse(raw);
+      } catch { stale = true; break; }
+      if (JSON.stringify(state[key] ?? null) !== JSON.stringify(cached)) { stale = true; break; }
+    }
+    const marker = "ccHydratedStateReload";
+    if (!stale) { sessionStorage.removeItem(marker); return false; }
+    if (sessionStorage.getItem(marker) === currentUser?.id) return false;
+    sessionStorage.setItem(marker, currentUser?.id || "pending");
+    setSync("Mise à jour des données…");
+    location.reload();
+    return true;
+  }
+
   function applyPermissions(role) {
     const pages = {
       admin: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","synthesis","documents","control","settings"],
@@ -237,6 +258,7 @@
       showMessage("loginMessage", "Connexion réussie, mais le chargement de la base a échoué : " + (error.message || "vérifie la connexion au projet."));
       return false;
     }
+    if (refreshAppStateIfStale()) return false;
     applyPermissions(profile.role);
     const badge = $("profileBadge"); if (badge) { badge.textContent = initial(profile.username); badge.title = "@" + profile.username + " · " + profile.role; }
     const name = $("activeUserName"); if (name) name.textContent = "";
