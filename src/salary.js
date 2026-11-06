@@ -10,7 +10,7 @@
     {name:"GOLD",min:5,coefficient:.5,color:"#f6d27a",dark:"#6e4a12",glow:"#f2c14e",icon:"gold",image:"/assets/ranks/gold.png"},
     {name:"IRON",min:0,coefficient:.25,color:"#b9c2d9",dark:"#262120",glow:"#c9a27e",icon:"iron",image:"/assets/ranks/iron.webp"}
   ];
-  let currentProfile=null,requestNumber=0;
+  let currentProfile=null,requestNumber=0,accessMonitor=null,accessVisibilityBound=false;
   const personFirst=name=>String(name||"").trim().split(/\s+/)[0]||"";
 
   function crest(rank,size=78){
@@ -42,7 +42,16 @@
     notice.textContent="Chargement de l’estimation…";notice.className="salary-notice";
     const {data,error}=await window.crmSupabase.functions.invoke("my-salary",{body:{month}});
     if(version!==requestNumber)return;
-    if(error||data?.error){notice.textContent=data?.error||"Impossible de charger l’estimation pour le moment.";notice.classList.add("error");return}
+    if(error||data?.error){
+      const message=data?.error||"Impossible de charger l’estimation pour le moment.";
+      notice.textContent=message;notice.classList.add("error");
+      const status=error?.context?.status||error?.status;
+      if(status===401||status===403||/accès réservé au compte collaborateur actif|fiche collaborateur liée à ce compte est introuvable/i.test(message)){
+        notice.textContent="Cet accès Mon Salaire n’est plus actif. Fermeture de la session…";
+        setTimeout(()=>window.crmCallerLogout?.(),500);
+      }
+      return;
+    }
     host.querySelector("#salaryMonthLabel").textContent=monthLabel(data.month);
     render(data,host);host.classList.add("salary-entered");
   }
@@ -108,5 +117,7 @@
   }
   window.crmMountSalary=profile=>{
     currentProfile=profile;const host=portalShell(profile);host.querySelector("#salaryUserTag").textContent="@"+(profile.username||"")+" · CALLER";load();
+    if(!accessMonitor)accessMonitor=window.setInterval(()=>{if(document.visibilityState==="visible")load()},15000);
+    if(!accessVisibilityBound){document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")load()});accessVisibilityBound=true}
   };
 })();
