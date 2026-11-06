@@ -201,5 +201,71 @@
     const type = event.target.closest("[data-schedule-type]");
     if (type) applyEditorState(type.closest("[data-schedule-editor]"));
   });
+  const normalizePerson = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+  const rowEmail = (row) => String(row?.email || row?.brokerlink_email || row?.email_brokerlink || row?.agent_email || "").trim().toLowerCase();
+  const firstLoginTime = (value) => {
+    if (!value) return "";
+    const text = String(value).trim();
+    if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(text) && /T|\s/.test(text)) {
+      const instant = new Date(text);
+      if (Number.isFinite(instant.getTime())) return new Intl.DateTimeFormat("en-GB", { timeZone:"Europe/Zurich", hour:"2-digit", minute:"2-digit", hourCycle:"h23" }).format(instant);
+    }
+    const match = text.match(/(?:^|T|\s)(\d{1,2}:\d{2}(?::\d{2})?)/);
+    return match ? match[1].slice(0,5) : "";
+  };
+  function rebuildAutomaticLates() {
+    const employees = state().employees || [];
+    let rows = [];
+    try { rows = JSON.parse(localStorage.getItem("capsule_kpiRows") || "[]"); } catch {}
+    if (!Array.isArray(rows)) rows = [];
+    const scheduleTemplates = templates();
+    employees.forEach((employee) => {
+      const assigned = employee.workSchedule || {};
+      const schedule = assigned.type === "special" ? assigned : (scheduleTemplates[assigned.type] || assigned);
+      const start = schedule.morningStart || schedule.afternoonStart || "";
+      const startMinutes = start ? Number(start.slice(0,2))*60 + Number(start.slice(3,5)) : null;
+      const email = String(employee.brokerlinkEmail || employee.brokerlink_email || "").trim().toLowerCase();
+      const name = normalizePerson(employee.name);
+      const employeeRows = rows.filter((row) => {
+        const candidateEmail = rowEmail(row);
+        if (email && candidateEmail) return email === candidateEmail;
+        return name && normalizePerson(row.name || row.collaborateur || row.employee || row.nom) === name;
+      });
+      const absences = (() => { try { return JSON.parse(localStorage.getItem("cc_attendance_" + employee.id) || "{}").absences || []; } catch { return []; } })();
+      const manualLates = (() => { try { return JSON.parse(localStorage.getItem("cc_attendance_" + employee.id) || "{}").lates || []; } catch { return []; } })().filter((item) => item.source !== "brokerlink-auto");
+      const protectedDates = new Set([...manualLates.map((item) => String(item.date || "").slice(0,10)), ...absences.map((item) => String(item.date || "").slice(0,10))]);
+      const firstByDate = new Map();
+      if (startMinutes !== null) employeeRows.forEach((row) => {
+        const date = String(row.date || row.jour || row.date_activite || "").slice(0,10);
+        const time = firstLoginTime(row.premiere_connexion || row.first_login || row.firstConnection || row.h_1ere_co);
+        if (!date || !time) return;
+        const minutes = Number(time.slice(0,2))*60 + Number(time.slice(3,5));
+        if (!firstByDate.has(date) || minutes < firstByDate.get(date).minutes) firstByDate.set(date,{minutes});
+      });
+      const automatic = [];
+      if (startMinutes !== null) [...firstByDate.entries()].sort(([a],[b])=>a.localeCompare(b)).forEach(([date,login]) => {
+        if (protectedDates.has(date)) return;
+        const minutes = login.minutes - startMinutes;
+        if (minutes <= 0) return;
+        automatic.push({ date, minutes, level:minutes<=10?"green":minutes<=30?"orange":"red", source:"brokerlink-auto", timezone:"Europe/Zurich" });
+      });
+      const storeKey = "cc_attendance_" + employee.id;
+      let store = {};
+      try { store = JSON.parse(localStorage.getItem(storeKey) || "{}"); } catch {}
+      store.lates = [...manualLates,...automatic];
+      if (!Array.isArray(store.absences)) store.absences = [];
+      if (!Array.isArray(store.crm)) store.crm = [];
+      const serialized = JSON.stringify(store);
+      if (localStorage.getItem(storeKey) !== serialized) localStorage.setItem(storeKey,serialized);
+    });
+  }
+  const priorRenderPerformance = window.crmRenderPerformanceModule;
+  if (typeof priorRenderPerformance === "function") {
+    window.crmRenderPerformanceModule = (...args) => {
+      rebuildAutomaticLates();
+      return priorRenderPerformance(...args);
+    };
+  }
   renderSettings();
+  rebuildAutomaticLates();
 })();
