@@ -64,7 +64,7 @@
       return (morningAny && !morningComplete) || (afternoonAny && !afternoonComplete) || (!morningComplete && !afternoonComplete) ? null : schedule;
     }
     if (!templateComplete(type)) return null;
-    return { type, timezone:"Europe/Zurich" };
+    return { type, timezone:"Europe/Zurich", ...(templates()[type] || {}) };
   };
   const style = document.createElement("style");
   style.textContent =
@@ -87,7 +87,8 @@
       button.type = "button"; button.className = "btn"; button.dataset.settingsView = "workSchedules"; button.setAttribute("role","tab"); button.textContent = "Horaires";
       bar.appendChild(button);
     }
-    if (typeof window.crmCurrentRole === "function" && window.crmCurrentRole() !== "admin") button.hidden = true;
+    button.setAttribute("data-admin-only","");
+    if (typeof window.crmCurrentRole === "function" && window.crmCurrentRole() && window.crmCurrentRole() !== "admin") button.hidden = true;
     let pane = $("#settingsWorkSchedulesView");
     if (!pane) { pane = document.createElement("div"); pane.id = "settingsWorkSchedulesView"; pane.hidden = true; bar.insertAdjacentElement("afterend",pane); }
     const t = templates();
@@ -113,6 +114,12 @@
     ["fullDay","morning","afternoon"].forEach((type) => parts.forEach(([part]) => { next[type][part] = normalizedTime($('[data-template="' + type + "." + part + '"]')?.value); }));
     const rules = getRules(); rules.scheduleTemplates = next;
     localStorage.setItem("capsule_controlRules",JSON.stringify(rules));
+    const employees = state().employees || [];
+    employees.forEach((employee) => {
+      const assigned = employee.workSchedule || {};
+      if (assigned.type && next[assigned.type]) employee.workSchedule = { ...assigned, ...next[assigned.type], timezone:"Europe/Zurich" };
+    });
+    localStorage.setItem("capsule_employees",JSON.stringify(employees));
     const message = $("#ccScheduleSaveMessage"); if (message) message.textContent = "Horaires enregistrés pour Europe/Zurich.";
     renderSettings(); window.crmRenderPerformanceModule?.(); notify("Modèles d’horaires enregistrés.");
   }
