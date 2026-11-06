@@ -190,6 +190,57 @@
         <button class="btn account-save" type="button" data-save-account>Enregistrer</button>
         <button class="btn account-save" type="button" data-change-account-password>Changer le mot de passe</button>
       </div>`).join("") : '<div class="empty"><b>Aucun accès créé</b>Ajoute un accès RH, chef de plateau ou directeur opérationnel ci-dessus.</div>';
+    renderSalaryAccessRegistry();
+  }
+  const issuedSalaryPasswords = new Map();
+  function renderSalaryAccessRegistry() {
+    if (currentProfile?.role !== "admin") return;
+    const bar = $("settingsTabBar"), screen = $("screen-settings");
+    if (!bar || !screen) return;
+    let button = bar.querySelector('[data-settings-view="salaryAccess"]');
+    if (!button) {
+      button = document.createElement("button"); button.type = "button"; button.className = "btn";
+      button.dataset.settingsView = "salaryAccess"; button.setAttribute("role", "tab"); button.textContent = "Accès Mon Salaire";
+      button.setAttribute("data-admin-only", ""); bar.append(button);
+    }
+    button.hidden = false;
+    let pane = $("settingsSalaryAccessView");
+    if (!pane) { pane = document.createElement("div"); pane.id = "settingsSalaryAccessView"; pane.hidden = true; bar.insertAdjacentElement("afterend", pane); }
+    if (!$("ccSalaryAccessRegistryStyle")) {
+      const style = document.createElement("style"); style.id = "ccSalaryAccessRegistryStyle";
+      style.textContent = "#settingsSalaryAccessView{color:#f3ecea}#settingsSalaryAccessView .cc-salary-access-panel{background:#211d1d;border:1px solid #493d3c;border-radius:14px;padding:18px}#settingsSalaryAccessView .cc-salary-access-panel h2{margin:0 0 6px;font-size:17px}#settingsSalaryAccessView .cc-salary-access-note{color:#cbbbbb;font-size:11px;line-height:1.6;margin:0 0 16px}#settingsSalaryAccessView .cc-salary-access-table{width:100%;border-collapse:collapse;font-size:12px}#settingsSalaryAccessView .cc-salary-access-table th,#settingsSalaryAccessView .cc-salary-access-table td{padding:12px 10px;border-bottom:1px solid #493d3c;text-align:left;vertical-align:middle}#settingsSalaryAccessView .cc-salary-access-table th{color:#d4c6c4;font-size:9px;letter-spacing:.08em}#settingsSalaryAccessView .cc-salary-access-table td{color:#f3ecea}#settingsSalaryAccessView .cc-salary-access-table code{display:inline-block;padding:5px 8px;border:1px solid #493d3c;border-radius:7px;background:#292323;color:#f4d7db;font-size:11px;user-select:all}#settingsSalaryAccessView .cc-salary-access-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}#settingsSalaryAccessView .cc-salary-access-status{display:block;margin-top:5px;color:#cbbbbb;font-size:10px}#settingsSalaryAccessView .cc-salary-access-empty{padding:24px;color:#cbbbbb;text-align:center;font-size:12px}@media(max-width:760px){#settingsSalaryAccessView .cc-salary-access-table,#settingsSalaryAccessView .cc-salary-access-table tbody,#settingsSalaryAccessView .cc-salary-access-table tr,#settingsSalaryAccessView .cc-salary-access-table td{display:block;width:100%}#settingsSalaryAccessView .cc-salary-access-table thead{display:none}#settingsSalaryAccessView .cc-salary-access-table tr{padding:10px 0;border-bottom:1px solid #493d3c}#settingsSalaryAccessView .cc-salary-access-table td{border:0;padding:5px 2px}}";
+      document.head.append(style);
+    }
+    let employees = []; try { employees = JSON.parse(localStorage.getItem("capsule_employees") || "[]"); } catch {}
+    employees = employees.filter(employee => !employee.archivedAt && employee.status !== "Sorti");
+    const accounts = new Map(accountCache.filter(user => user.role === "caller" && user.employee_id).map(user => [String(user.employee_id), user]));
+    const rows = employees.map(employee => {
+      const id = String(employee.id), account = accounts.get(id), issued = issuedSalaryPasswords.get(id);
+      const status = !account ? "Aucun accès créé" : account.is_active ? "Actif" : "Désactivé";
+      const credentials = account
+        ? '<code>@' + escapeHtml(account.username) + '</code><small class="cc-salary-access-status">' + (issued ? "Nouveau mot de passe temporaire — à transmettre au collaborateur." : "Mot de passe actuel masqué — il ne peut pas être récupéré.") + '</small>' + (issued ? '<div class="cc-salary-access-actions" style="margin-top:7px"><code>' + escapeHtml(issued) + '</code><button type="button" class="btn" data-copy-salary-password="' + escapeHtml(id) + '">Copier</button><button type="button" class="btn" data-hide-salary-password="' + escapeHtml(id) + '">Masquer</button></div>' : "")
+        : '<span>—</span>';
+      const action = account
+        ? '<button type="button" class="btn" data-reset-salary-access="' + escapeHtml(account.id) + '" data-employee-id="' + escapeHtml(id) + '">' + (account.is_active ? "Nouveau mot de passe" : "Réactiver + définir un mot de passe") + '</button>'
+        : '<button type="button" class="btn primary" data-open-salary-access="' + escapeHtml(id) + '">Créer l’accès</button>';
+      return '<tr><td><b>' + escapeHtml(employee.name || "Collaborateur") + '</b></td><td>' + credentials + '</td><td>' + status + '</td><td>' + action + '<small class="cc-salary-access-status" data-salary-status="' + escapeHtml(id) + '" aria-live="polite"></small></td></tr>';
+    }).join("");
+    pane.innerHTML = '<div class="cc-salary-access-panel"><h2>Accès Mon Salaire</h2><p class="cc-salary-access-note">Liste des collaborateurs actifs et de leur identifiant. Supabase ne permet pas de consulter un mot de passe existant : tu peux en générer un nouveau et le transmettre en privé. Le nouveau mot de passe s’affiche ici jusqu’à ce que tu le masques ou quittes ta session.</p>' +
+      (rows ? '<div class="tablewrap"><table class="cc-salary-access-table"><thead><tr><th>COLLABORATEUR ACTIF</th><th>IDENTIFIANT ET MOT DE PASSE</th><th>ACCÈS</th><th>ACTION</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="cc-salary-access-empty">Aucun collaborateur actif.</div>') + '</div>';
+  }
+  function showSalaryAccessRegistry() {
+    renderSalaryAccessRegistry();
+    document.querySelectorAll("#screen-settings > [id$='View']").forEach(view => { view.hidden = view.id !== "settingsSalaryAccessView"; });
+    document.querySelectorAll("#settingsTabBar [data-settings-view]").forEach(tab => {
+      const active = tab.dataset.settingsView === "salaryAccess";
+      tab.classList.toggle("active", active); tab.classList.toggle("primary", active); tab.setAttribute("aria-selected", String(active));
+    });
+    $("settingsSalaryAccessView").hidden = false;
+  }
+  function generateTemporaryPassword() {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+    const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+    return Array.from(bytes, byte => alphabet[byte % alphabet.length]).join("");
   }
   async function listAccounts() {
     const { data, error } = await client.functions.invoke("manage-accounts", { body: { action:"list" } });
