@@ -78,6 +78,8 @@
     choices.dataset.ready = "true";
     const selected = [...choices.querySelectorAll("input:checked")].map((input) => input.value);
     if (summary) summary.textContent = selected.length === employees.length ? "Tous les collaborateurs (" + employees.length + ")" : selected.length + " collaborateur(s) sélectionné(s)";
+    const bulkButton = choices.closest(".performance-picker-menu")?.querySelector("[data-select-all-employees]");
+    if (bulkButton) bulkButton.textContent = employees.length > 0 && selected.length === employees.length ? "Tout désélectionner" : "Tout sélectionner";
     return selected;
   }
 
@@ -256,7 +258,9 @@
     const selectAll = event.target.closest("[data-select-all-employees]");
     if (selectAll) {
       const prefix = selectAll.dataset.selectAllEmployees;
-      document.querySelectorAll("[data-" + prefix + "-employee]").forEach((input) => { input.checked = true; });
+      const inputs = [...document.querySelectorAll("[data-" + prefix + "-employee]")];
+      const selectAllNow = inputs.some((input) => !input.checked);
+      inputs.forEach((input) => { input.checked = selectAllNow; });
       render(); return;
     }
     const tab = event.target.closest("[data-performance-tab]");
