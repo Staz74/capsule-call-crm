@@ -87,9 +87,13 @@
     return Math.floor(total / 60) + " h " + String(total % 60).padStart(2, "0");
   };
   const timeText = (value) => {
-    if (value === null || value === undefined || value === "") return "";
+    if (!value) return "";
     const text = String(value).trim();
-    const match = text.match(/(?:^|T|\s)(\d{1,2}:\d{2}(?::\d{2})?)/);
+    if (/(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(text) && /T|\\s/.test(text)) {
+      const instant = new Date(text);
+      if (Number.isFinite(instant.getTime())) return new Intl.DateTimeFormat("en-GB", { timeZone:"Europe/Zurich", hour:"2-digit", minute:"2-digit", hourCycle:"h23" }).format(instant);
+    }
+    const match = text.match(/(?:^|T|\\s)(\\d{1,2}:\\d{2}(?::\\d{2})?)/);
     return match ? match[1].slice(0, 5) : text;
   };
   const formatDate = (value) => {
@@ -158,7 +162,10 @@
       const alerts = alertValues.length ? alertValues.reduce((total, value) => total + value, 0) : null;
       const manualLateDates = new Set(lates.map(item => dateOf(item.date)).filter(Boolean));
       const absenceDates = new Set(absences.map(item => dateOf(item.date)).filter(Boolean));
-      const schedule = employee.workSchedule || {};
+      const assignedSchedule = employee.workSchedule || {};
+      let configuredTemplates = {};
+      try { configuredTemplates = JSON.parse(localStorage.getItem("capsule_controlRules") || "{}")?.scheduleTemplates || {}; } catch {}
+      const schedule = assignedSchedule.type === "special" ? assignedSchedule : (configuredTemplates[assignedSchedule.type] || assignedSchedule);
       const scheduledStart = schedule.morningStart || schedule.afternoonStart || "";
       const startMinutes = scheduledStart ? Number(scheduledStart.slice(0,2))*60 + Number(scheduledStart.slice(3,5)) : null;
       const loginByDate = new Map();
