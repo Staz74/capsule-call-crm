@@ -82,7 +82,11 @@ Deno.serve(async (request: Request) => {
       return reply({ error: "Ce rôle n’est pas autorisé à synchroniser les données de performance." }, 403);
     }
 
-    const apiKey = Deno.env.get("BROKERLINK_API_KEY") || "";
+    const rawApiKey = Deno.env.get("BROKERLINK_API_KEY") || "";
+    const keyLines = [...rawApiKey.matchAll(/(?:^|\r?\n)\s*(\d{4}\|[A-Za-z0-9]+)\s*(?=\r?\n|$)/gm)];
+    const apiKey = keyLines.length
+      ? keyLines[keyLines.length - 1][1]
+      : rawApiKey.trim();
     if (!apiKey) return reply({ error: "La clé API Brokerlink n’est pas encore configurée côté serveur." }, 503);
 
     let body: Record<string, unknown> = {};
@@ -152,6 +156,39 @@ Deno.serve(async (request: Request) => {
       if (page > 101) return reply({ error: "L’import dépasse la limite de pages autorisée." }, 413);
     } while (page <= lastPage);
 
+    const { data: currentKpiState, error: currentKpiError } = await supabase
+      .from("crm_state")
+      .select("payload")
+      .eq("state_key", "kpiRows")
+      .maybeSingle();
+    if (currentKpiError) throw currentKpiError;
+    const currentKpiRows: Record<string, unknown>[] = Array.isArray(currentKpiState?.payload)
+      ? currentKpiState.payload as Record<string, unknown>[]
+      : [];
+    const mergedKpiRows = new Map<string, Record<string, unknown>>();
+    const keyForKpi = (row: Record<string, unknown>) => {
+      if (row.source === "brokerlink-api") {
+        const email = normalizeEmail(row.email ?? row.brokerlink_email);
+        const date = parseDate(row.date);
+        if (email && date) return "api:" + email + ":" + date;
+      }
+      return "row:" + JSON.stringify(row);
+    };
+    for (const row of currentKpiRows) mergedKpiRows.set(keyForKpi(row), row);
+    for (const row of rows) mergedKpiRows.set(keyForKpi(row), row);
+    const mergedKpiPayload = [...mergedKpiRows.values()];
+    const { error: kpiSaveError } = await supabase.rpc("crm_merge_state", {
+      p_state_key: "kpiRows",
+      p_base: currentKpiRows,
+      p_next: mergedKpiPayload,
+    });
+    if (kpiSaveError) throw kpiSaveError;
+
+    const rowDates = rows.map((row) => String(row.date || "")).filter(Boolean).sort();
+    console.info("brokerlink-sync success", {
+      requestedFrom: from, requestedTo: to, collaborators: collaboratorRows.length,
+      rows: rows.length, firstDate: rowDates[0] || null, lastDate: rowDates[rowDates.length - 1] || null,
+    });
     return reply({
       from, to, timezone: collaboratorResponse?.timezone || "Europe/Zurich",
       collaborators: collaboratorRows.length, rows,
@@ -159,6 +196,11 @@ Deno.serve(async (request: Request) => {
   } catch (error) {
     const status = Number((error as { status?: number })?.status) || 502;
     const message = error instanceof Error ? error.message : "Erreur de synchronisation Brokerlink.";
+    console.error("brokerlink-sync failure", {
+      name: error instanceof Error ? error.name : typeof error,
+      message: message.slice(0, 300),
+      status,
+    });
     return reply({ error: message }, status);
   }
 });
