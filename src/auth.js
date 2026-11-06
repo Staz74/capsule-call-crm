@@ -280,7 +280,11 @@
       const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "./src/salary.css"; document.head.appendChild(css);
     }
     if (!window.crmMountSalary) await new Promise((resolve, reject) => {
-      const script = document.createElement("script"); script.src = "./src/salary.js"; script.onload = resolve; script.onerror = reject; document.head.appendChild(script);
+      const script = document.createElement("script");
+      const authScript = [...document.scripts].find(item => item.src.includes("/src/auth.js"));
+      const assetVersion = authScript ? new URL(authScript.src).searchParams.get("v") : "";
+      script.src = "./src/salary.js" + (assetVersion ? "?v=" + encodeURIComponent(assetVersion) : "");
+      script.onload = resolve; script.onerror = reject; document.head.appendChild(script);
     });
     window.crmMountSalary(profile);
     return true;
@@ -742,6 +746,39 @@
         }
       }
       location.reload();
+    });
+    document.addEventListener("click", async event => {
+      const tab = event.target.closest('#settingsTabBar [data-settings-view="salaryAccess"]');
+      if (tab) { showSalaryAccessRegistry(); return; }
+      const open = event.target.closest("[data-open-salary-access]");
+      if (open) { window.crmOpenEmployeeProfile?.(Number(open.dataset.openSalaryAccess), "attendance"); return; }
+      const hidePassword = event.target.closest("[data-hide-salary-password]");
+      if (hidePassword) { issuedSalaryPasswords.delete(String(hidePassword.dataset.hideSalaryPassword)); showSalaryAccessRegistry(); return; }
+      const copyPassword = event.target.closest("[data-copy-salary-password]");
+      if (copyPassword) {
+        const value = issuedSalaryPasswords.get(String(copyPassword.dataset.copySalaryPassword));
+        if (!value) return;
+        try { await navigator.clipboard.writeText(value); showMessage("accountMessage", "Nouveau mot de passe copié.", false); }
+        catch { showMessage("accountMessage", "Copie impossible depuis ce navigateur. Sélectionne le mot de passe affiché.", true); }
+        return;
+      }
+      const reset = event.target.closest("[data-reset-salary-access]");
+      if (reset) {
+        const employeeId = String(reset.dataset.employeeId), status = document.querySelector('[data-salary-status="' + CSS.escape(employeeId) + '"]');
+        const password = generateTemporaryPassword(); reset.disabled = true;
+        if (status) status.textContent = "Remplacement du mot de passe…";
+        try {
+          await invokeAdmin({ action:"update", id:reset.dataset.resetSalaryAccess, role:"caller", isActive:true, password });
+          issuedSalaryPasswords.set(employeeId, password);
+          await listAccounts();
+          showSalaryAccessRegistry();
+          const updatedStatus = document.querySelector('[data-salary-status="' + CSS.escape(employeeId) + '"]');
+          if (updatedStatus) updatedStatus.textContent = "Mot de passe remplacé. Transmets-le au collaborateur.";
+        } catch (error) {
+          if (status) status.textContent = error.message || "Impossible de remplacer le mot de passe.";
+          reset.disabled = false;
+        }
+      }
     });
     const logout = async () => { cloudReady = false; await client.auth.signOut(); currentUser = currentProfile = null; location.reload(); };
     $("logoutBtn")?.addEventListener("click", logout);
