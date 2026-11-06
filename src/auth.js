@@ -200,21 +200,30 @@
 
   function renderAccountList(users) {
     accountCache = users || [];
+    const crmStaffRoles = new Set(["rh","chef_plateau","directeur_operationnel","imperator"]);
+    const crmUsers = accountCache.filter(user => crmStaffRoles.has(user.role));
     const table = $("accountUserList"); if (!table) return;
-    table.innerHTML = users.length ? users.map((user) => `
+    if (!$("ccCrmAccountDeleteStyle")) {
+      const style = document.createElement("style"); style.id = "ccCrmAccountDeleteStyle";
+      style.textContent = ".account-row{grid-template-columns:minmax(0,1fr) 150px 110px auto auto 36px!important}.account-row .account-delete{width:34px;height:34px;min-width:34px;padding:0;display:grid;place-items:center;border:1px solid #81535b;background:#39272b;color:#f0bcc5;border-radius:9px;cursor:pointer}.account-row .account-delete:hover{background:#56323a;color:#ffe2e6;border-color:#b26d7b}.account-row .account-delete svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}@media(max-width:800px){.account-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.account-row .account-delete{justify-self:start}}";
+      document.head.appendChild(style);
+    }
+    table.innerHTML = crmUsers.length ? crmUsers.map((user) => `
       <div class="account-row" data-account-id="${escapeHtml(user.id)}">
-        <div><b>${escapeHtml(user.display_name)}</b><small>@${escapeHtml(user.username)}${user.role === "caller" ? " · fiche #" + escapeHtml(user.employee_id) : ""}</small></div>
+        <div><b>${escapeHtml(user.display_name)}</b><small>@${escapeHtml(user.username)}</small></div>
         <label class="account-field"><span>Rôle</span><select data-account-role>
           <option value="rh" ${user.role === "rh" ? "selected" : ""}>RH</option>
           <option value="chef_plateau" ${user.role === "chef_plateau" ? "selected" : ""}>Chef de plateau</option>
           <option value="directeur_operationnel" ${user.role === "directeur_operationnel" ? "selected" : ""}>Directeur opérationnel</option>
           <option value="imperator" ${user.role === "imperator" ? "selected" : ""}>Imperator</option>
-          ${user.role === "caller" ? '<option value="caller" selected>Collaborateur · Mon salaire</option>' : ""}
         </select></label>
         <label class="account-field"><span>Accès</span><select data-account-active><option value="true" ${user.is_active ? "selected" : ""}>Actif</option><option value="false" ${!user.is_active ? "selected" : ""}>Désactivé</option></select></label>
         <button class="btn account-save" type="button" data-save-account>Enregistrer</button>
         <button class="btn account-save" type="button" data-change-account-password>Changer le mot de passe</button>
-      </div>`).join("") : '<div class="empty"><b>Aucun accès créé</b>Ajoute un accès RH, chef de plateau ou directeur opérationnel ci-dessus.</div>';
+        <button class="account-delete" type="button" data-delete-crm-account aria-label="Supprimer l’accès CRM de ${escapeHtml(user.display_name)}" title="Supprimer l’accès CRM">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>
+        </button>
+      </div>`).join("") : '<div class="empty"><b>Aucun compte CRM créé</b>Crée ici un accès RH, chef de plateau, directeur opérationnel ou Imperator.</div>';
     renderSalaryAccessRegistry();
   }
   const issuedSalaryPasswords = new Map();
@@ -942,6 +951,16 @@
           if (password === null) return;
           await invokeAdmin({ action:"update", id:row.dataset.accountId, password });
           showMessage("accountMessage", "Mot de passe modifié. Communique-le à la personne concernée.", false);
+        } else if (event.target.closest("[data-delete-crm-account]")) {
+          const target = accountCache.find(user => user.id === row.dataset.accountId);
+          if (!target || !["rh","chef_plateau","directeur_operationnel","imperator"].includes(target.role)) {
+            throw new Error("Seuls les comptes de gestion CRM peuvent être supprimés ici.");
+          }
+          const accepted = window.confirm("Supprimer l’accès CRM de @" + target.username + " ? Cette action supprimera uniquement son compte de gestion. La fiche collaborateur et tout accès Mon Salaire resteront inchangés.");
+          if (!accepted) return;
+          await invokeAdmin({ action:"delete-crm-account", id:target.id });
+          await listAccounts();
+          showMessage("accountMessage", "Accès CRM supprimé.", false);
         }
       } catch (error) { showMessage("accountMessage", error.message); }
     });
