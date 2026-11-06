@@ -92,9 +92,12 @@
     let pane = $("#settingsWorkSchedulesView");
     if (!pane) { pane = document.createElement("div"); pane.id = "settingsWorkSchedulesView"; pane.hidden = true; bar.insertAdjacentElement("afterend",pane); }
     const t = templates();
-    const card = (key,title) => '<section class="cc-schedule-template"><h3>' + title + '</h3><div class="cc-schedule-template-grid">' +
-      parts.map(([part,label]) => '<label class="cc-schedule-time">' + label + '<input type="time" data-template="' + key + '.' + part + '" value="' + esc(t[key]?.[part] || "") + '"></label>').join("") +
-      '</div></section>';
+    const card = (key,title) => {
+      const visibleParts = key === "fullDay" ? parts : key === "morning" ? parts.slice(0,2) : parts.slice(2);
+      return '<section class="cc-schedule-template"><h3>' + title + '</h3><div class="cc-schedule-template-grid">' +
+        visibleParts.map(([part,label]) => '<label class="cc-schedule-time">' + label + '<input type="time" data-template="' + key + '.' + part + '" value="' + esc(t[key]?.[part] || "") + '"></label>').join("") +
+        '</div></section>';
+    };
     pane.innerHTML = '<div class="cc-schedule-settings"><div><h2 style="margin:0 0 6px">Horaires de référence</h2><p style="margin:0;color:var(--muted);font-size:11px">Définis les modèles utilisés lors de la création des fiches. Fuseau : Europe/Zurich.</p></div>' +
       card("fullDay","Journée complète · matin et après-midi") + card("morning","Matinée uniquement") + card("afternoon","Après-midi uniquement") +
       '<div class="cc-schedule-actions"><button type="button" class="btn primary" id="ccSaveScheduleTemplates">Enregistrer les horaires</button><span class="cc-schedule-message" id="ccScheduleSaveMessage" aria-live="polite"></span></div>' +
