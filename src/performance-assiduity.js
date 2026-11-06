@@ -235,6 +235,7 @@
     try { localStorage.setItem("capsule_kpiRows",JSON.stringify(merged)); }
     finally { window.crmBrokerlinkRemoteSave = false; }
     render();
+    window.crmRebuildAutomaticLates?.();
   }
   async function syncBrokerlink() {
     if(brokerlinkSyncRunning)return;
