@@ -150,8 +150,14 @@
   }
 
   function render() {
-    const context = window.crmPerformanceContext?.();
+    let context = window.crmPerformanceContext?.();
     if (!context) return;
+    // The dashboard owns kpiRows in a closure. Read the newly synced cache so
+    // fresh Brokerlink rows are reflected without requiring a page reload.
+    try {
+      const cachedRows = JSON.parse(localStorage.getItem("capsule_kpiRows") || "null");
+      if (Array.isArray(cachedRows)) context = { ...context, kpiRows: cachedRows };
+    } catch {}
     const employees = employeesOf(context);
     renderPicker("performance", employees);
     renderPicker("attendance", employees);
