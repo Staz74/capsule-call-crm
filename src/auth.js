@@ -701,7 +701,7 @@
       #screen-onboarding #onboardingTable .cc-onboard-status-select {
         box-sizing: border-box; min-width: 148px; max-width: 100%; padding: 7px 10px;
         border: 1px solid #77535b; border-radius: 8px; background: #342629;
-        color: #f3dfe3; font: 700 11px inherit; cursor: pointer;
+        color: #f3dfe3; font-family: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
       }
       #screen-onboarding #onboardingTable .cc-onboard-status-select option {
         background: #261f21; color: #f3dfe3;
