@@ -9,12 +9,12 @@
     date: ["date", "jour", "date_activite", "date_appel", "created_at"],
     files: ["fiches_traitees", "fiches_traite", "nb_fiches", "fiches", "fiches_traitees_total", "dossiers_traites", "leads_processed", "processed_leads", "total_fiches"],
     calls: ["appels", "calls", "nb_appels", "nb_call", "total_calls", "sortants", "appels_passes"],
-    responded: ["contacts", "contacts_joints", "repondues", "fiches_repondues", "answered", "leads_answered"],
+    responded: ["contacts", "contacts_joints", "repondues", "fiches_repondues", "answered", "leads_answered", "appels_repondus"],
     appointments: ["rdv_pris", "rendez_vous", "appointments", "appts", "appointment_count"],
-    alerts: ["alertes", "alerts", "alert_count", "alerts_count"],
+    alerts: ["alertes", "alerts", "alert_count", "alerts_count", "alertes_plus_10min"],
     firstLogin: ["premiere_connexion", "first_login", "heure_premiere_connexion", "h_1ere_co", "first_connection"],
     email: ["brokerlink_email", "email_brokerlink", "agent_email", "caller_email", "user_email", "email", "courriel", "mail"],
-    signatures: ["signatures_confirmees", "signature_confirmee", "signatures_validees", "signature_validee", "ouvertures_confirmees", "ouverture_confirmee", "validated_signatures", "confirmed_signatures", "validated_openings", "confirmed_openings", "signed_accounts", "signatures"]
+    signatures: ["signatures_confirmees", "signature_confirmee", "signatures_validees", "signature_validee", "ouvertures_confirmees", "ouverture_confirmee", "ouvertures_lpp", "signatures_lca", "validated_signatures", "confirmed_signatures", "validated_openings", "confirmed_openings", "signed_accounts", "signatures"]
   };
   const field = (row, candidates) => {
     const keys = Object.keys(row || {}), match = keys.find((key) => candidates.includes(normalize(key)));
@@ -173,6 +173,82 @@
     });
     document.querySelectorAll("[data-attendance-pane]").forEach((pane) => { pane.hidden = pane.dataset.attendancePane !== view; });
   }
+  const brokerlinkAllowedRoles = new Set(["admin","chef_plateau","directeur_operationnel","imperator"]);
+  let brokerlinkSyncRunning = false, brokerlinkLastAttempt = 0, brokerlinkLastSuccess = 0;
+  const brokerlinkMinDate = "2026-03-02";
+  const brokerlinkToday = () => {
+    const parts = new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+    const fields = Object.fromEntries(parts.map(part=>[part.type,part.value]));
+    return fields.year+"-"+fields.month+"-"+fields.day;
+  };
+  const brokerlinkAddDays = (date,days) => { const value=new Date(date+"T12:00:00Z");value.setUTCDate(value.getUTCDate()+days);return value.toISOString().slice(0,10); };
+  const brokerlinkNormalize = (value) => String(value??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("fr").replace(/[^a-z0-9]+/g," ").trim();
+  const brokerlinkDate = (row) => String(row?.date||row?.jour||row?.date_activite||row?.date_appel||"").slice(0,10);
+  const brokerlinkEmail = (row) => String(row?.brokerlink_email||row?.email_brokerlink||row?.agent_email||row?.caller_email||row?.user_email||row?.email||row?.courriel||row?.mail||"").trim().toLowerCase();
+  const brokerlinkName = (row) => String(row?.name||row?.collaborateur||row?.employee_name||row?.nom_complet||row?.collaborateur_nom||row?.nom||"").trim();
+  function setBrokerlinkSyncStatus(message) {
+    const note=$("#performanceSourceNote");if(!note)return;
+    const base=note.dataset.baseText||note.textContent||"";
+    note.dataset.baseText=base.replace(/\s*·\s*Brokerlink[^.]*\.?$/,"");
+    note.textContent=note.dataset.baseText+" · Brokerlink : "+message;
+  }
+  async function mergeBrokerlinkRows(rows,from,to) {
+    const incoming=Array.isArray(rows)?rows:[];
+    let existing=[];try{existing=JSON.parse(localStorage.getItem("capsule_kpiRows")||"[]")}catch{}
+    if(!Array.isArray(existing))existing=[];
+    const emails=new Set(incoming.map(brokerlinkEmail).filter(Boolean));
+    const names=new Set(incoming.map(brokerlinkName).map(brokerlinkNormalize).filter(Boolean));
+    const retained=existing.filter(row=>{
+      const date=brokerlinkDate(row);
+      if(!date||date<from||date>to)return true;
+      if(row?.source==="brokerlink-api")return false;
+      const email=brokerlinkEmail(row);
+      if(email&&emails.has(email))return false;
+      const name=brokerlinkNormalize(brokerlinkName(row));
+      return !name||!names.has(name);
+    });
+    const uniqueIncoming=new Map();
+    for(const row of incoming){
+      const email=brokerlinkEmail(row),date=brokerlinkDate(row);
+      if(email&&date)uniqueIncoming.set(email+"|"+date,row);
+    }
+    const merged=[...retained,...uniqueIncoming.values()];
+    localStorage.setItem("capsule_kpiRows",JSON.stringify(merged));
+    render();
+  }
+  async function syncBrokerlink() {
+    if(brokerlinkSyncRunning)return;
+    const role=typeof window.crmCurrentRole==="function"?window.crmCurrentRole():"";
+    if(!brokerlinkAllowedRoles.has(role))return;
+    brokerlinkSyncRunning=true;brokerlinkLastAttempt=Date.now();
+    try{
+      const today=brokerlinkToday(),history=sessionStorage.getItem("ccBrokerlinkHistorySynced")!=="1";
+      const earliest=history?brokerlinkMinDate:(brokerlinkAddDays(today,-29)<brokerlinkMinDate?brokerlinkMinDate:brokerlinkAddDays(today,-29));
+      let cursor=earliest,total=0;
+      while(cursor<=today){
+        const end=brokerlinkAddDays(cursor,91)>today?today:brokerlinkAddDays(cursor,91);
+        const {data,error}=await window.crmSupabase.functions.invoke("brokerlink-sync",{body:{from:cursor,to:end}});
+        if(error||!data||data.error)throw new Error(data?.error||"La synchronisation Brokerlink a échoué.");
+        await mergeBrokerlinkRows(data.rows,cursor,end);
+        total+=Array.isArray(data.rows)?data.rows.length:0;
+        cursor=brokerlinkAddDays(end,1);
+      }
+      if(history)sessionStorage.setItem("ccBrokerlinkHistorySynced","1");
+      brokerlinkLastSuccess=Date.now();
+      const time=new Intl.DateTimeFormat("fr-FR",{timeZone:"Europe/Zurich",hour:"2-digit",minute:"2-digit"}).format(new Date());
+      setBrokerlinkSyncStatus(total+" ligne(s) reçue(s), mise à jour à "+time+".");
+    }catch(error){
+      const message=String(error?.message||"");
+      setBrokerlinkSyncStatus(message.includes("absente côté serveur")?"clé API à configurer dans Supabase.":message||"synchronisation indisponible.");
+    }finally{brokerlinkSyncRunning=false;}
+  }
+  setInterval(()=>{
+    if(document.visibilityState==="hidden")return;
+    const role=typeof window.crmCurrentRole==="function"?window.crmCurrentRole():"";
+    if(!brokerlinkAllowedRoles.has(role))return;
+    const due=brokerlinkLastSuccess?Date.now()-brokerlinkLastSuccess>=15*60*1000:Date.now()-brokerlinkLastAttempt>=60*1000;
+    if(due)syncBrokerlink();
+  },5000);
   document.addEventListener("change", (event) => {
     if (event.target.matches("#performanceFrom, #performanceTo, #attendanceFrom, #attendanceTo, [data-performance-employee], [data-attendance-employee]")) render();
   });
