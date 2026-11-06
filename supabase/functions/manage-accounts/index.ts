@@ -26,6 +26,20 @@ Deno.serve(async (req: Request) => {
     if (!profile || !profile.is_active || profile.role !== user.app_metadata?.role) return json({ error: "Session invalide. Reconnecte-toi." }, 403);
 
     const body = await req.json();
+    if (body.action === "check-caller-access") {
+      if (profile.role !== "caller" || user.app_metadata?.role !== "caller" || !profile.employee_id) {
+        return json({ error: "Cette vérification est réservée aux accès Mon Salaire." }, 403);
+      }
+      const { data: employeeState, error: employeeError } = await admin.from("crm_state").select("payload").eq("state_key", "employees").maybeSingle();
+      if (employeeError) throw employeeError;
+      const employee = (Array.isArray(employeeState?.payload) ? employeeState.payload : [])
+        .find((item: any) => String(item?.id) === String(profile.employee_id) && !item.archivedAt && item.status !== "Sorti");
+      if (!employee) {
+        await admin.from("crm_profiles").update({ is_active: false, updated_at: new Date().toISOString() }).eq("id", user.id);
+        return json({ error: "Cet accès Mon Salaire n’est plus actif." }, 403);
+      }
+      return json({ active: true });
+    }
     if (body.action === "update-self") {
       const username = String(body.username || "").trim().toLowerCase();
       const displayName = String(body.displayName || "").trim();
