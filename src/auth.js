@@ -92,9 +92,20 @@
       }
       for (const row of firstState) { remote.set(row.state_key, row.payload); cloudBase.set(row.state_key, row.payload); }
     }
+    const crmEmployees = Array.isArray(remote.get("employees")) ? remote.get("employees") : [];
+    const linkedBrokerlinkEmails = new Set(crmEmployees.map((employee) => String(employee.brokerlinkEmail || employee.brokerlink_email || "").trim().toLowerCase()).filter(Boolean));
     for (const key of dataKeys) {
-      if (remote.has(key)) storedOriginal.call(localStorage, "capsule_" + key, JSON.stringify(remote.get(key)));
-      else if (Object.prototype.hasOwnProperty.call(local, key)) {
+      if (remote.has(key)) {
+        let localPayload = remote.get(key);
+        if (key === "kpiRows" && Array.isArray(localPayload)) {
+          localPayload = localPayload.filter((row) => {
+            if (row?.source !== "brokerlink-api") return true;
+            const email = String(row.email || row.brokerlink_email || "").trim().toLowerCase();
+            return email && linkedBrokerlinkEmails.has(email);
+          });
+        }
+        storedOriginal.call(localStorage, "capsule_" + key, JSON.stringify(localPayload));
+      } else if (Object.prototype.hasOwnProperty.call(local, key)) {
         storedOriginal.call(localStorage, "capsule_" + key, JSON.stringify(local[key]));
         const { error: seedError } = await client.from("crm_state").upsert({ state_key:key, payload:local[key], updated_by:currentUser.id }, { onConflict:"state_key" });
         if (seedError) throw seedError;
