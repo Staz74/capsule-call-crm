@@ -507,7 +507,7 @@
     const options=[["fullDay","Journée complète"],["morning","Matinée"],["afternoon","Après-midi"],["special","Personnalisé"]].map(([value,label])=>'<option value="'+value+'"'+(type===value?" selected":"")+'>'+label+'</option>').join("");
     const description=type==="special"?"Les heures personnalisées sont enregistrées sur cette fiche et utilisées pour calculer le retard.":"Les heures de ce modèle sont définies dans Paramètres → Horaires.";
     card.innerHTML='<div class="panel-head"><div><div class="panel-title">Horaire prévu</div><div class="panel-desc">Choisis le rythme de travail de cette personne.</div></div></div><form id="ccEmployeeWorkScheduleForm" class="cc-schedule-form"><label class="cc-schedule-select-label">Type d’horaire<select name="scheduleType">'+options+'</select></label><small class="cc-schedule-status" aria-live="polite">'+description+'</small><button class="btn primary" type="button" data-save-employee-schedule>Enregistrer l’horaire</button></form>';
-    const form=card.querySelector("#ccEmployeeWorkScheduleForm");
+    const form=card.querySelector("#ccEmployeeWorkScheduleForm"),scheduleSelect=form.querySelector("[name='scheduleType']");if(scheduleSelect)scheduleSelect.dataset.lastScheduleType=type;
     if(type==="special")form.dataset.customSchedule=JSON.stringify({type:"special",timezone:"Europe/Zurich",morningStart:ws.morningStart||"",morningEnd:ws.morningEnd||"",afternoonStart:ws.afternoonStart||"",afternoonEnd:ws.afternoonEnd||""});
   }
   function templateValid(type,t){
