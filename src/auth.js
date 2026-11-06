@@ -271,6 +271,74 @@
     });
     $("settingsSalaryAccessView").hidden = false;
   }
+
+  function ensureBrokerlinkPasswordView() {
+    if (currentProfile?.role !== "admin") return;
+    const bar = $("settingsTabBar"), screen = $("screen-settings");
+    if (!bar || !screen) return;
+    let tab = bar.querySelector('[data-settings-view="brokerlinkPassword"]');
+    if (!tab) {
+      tab = document.createElement("button"); tab.type = "button"; tab.className = "btn";
+      tab.dataset.settingsView = "brokerlinkPassword"; tab.setAttribute("role", "tab");
+      tab.textContent = "Mot de passe Brokerlink"; tab.setAttribute("data-admin-only", ""); bar.append(tab);
+    }
+    tab.hidden = false;
+    let pane = $("settingsBrokerlinkPasswordView");
+    if (!pane) {
+      pane = document.createElement("div"); pane.id = "settingsBrokerlinkPasswordView"; pane.hidden = true;
+      bar.insertAdjacentElement("afterend", pane);
+    }
+    if (!$("ccBrokerlinkPasswordStyle")) {
+      const style = document.createElement("style"); style.id = "ccBrokerlinkPasswordStyle";
+      style.textContent = "#settingsBrokerlinkPasswordView{color:#f3ecea}#settingsBrokerlinkPasswordView .cc-bl-panel{background:#211d1d;border:1px solid #493d3c;border-radius:14px;padding:20px;max-width:780px}#settingsBrokerlinkPasswordView h2{margin:0 0 8px;font-size:18px}#settingsBrokerlinkPasswordView p{color:#cbbbbb;font-size:12px;line-height:1.65}#settingsBrokerlinkPasswordView .cc-bl-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:end;margin-top:18px}#settingsBrokerlinkPasswordView .cc-bl-form label{display:grid;gap:6px;color:#d4c6c4;font-size:11px}#settingsBrokerlinkPasswordView input{min-width:0;background:#292323!important;color:#f3ecea!important;border:1px solid #5b4948!important;border-radius:9px;padding:11px 12px}#settingsBrokerlinkPasswordView .cc-bl-result{margin-top:16px;padding:14px;border:1px solid #6b4d52;border-radius:11px;background:#302124}#settingsBrokerlinkPasswordView .cc-bl-password{display:block;margin:10px 0;padding:12px;background:#211d1d;border-radius:8px;color:#f4d7db;font:600 15px ui-monospace,monospace;word-break:break-all;user-select:all}#settingsBrokerlinkPasswordView .cc-bl-status{display:block;margin-top:12px;color:#f4d7db;font-size:12px;min-height:18px}#settingsBrokerlinkPasswordView .cc-bl-actions{display:flex;gap:8px;flex-wrap:wrap}@media(max-width:650px){#settingsBrokerlinkPasswordView .cc-bl-form{grid-template-columns:1fr}#settingsBrokerlinkPasswordView .cc-bl-panel{padding:15px}}";
+      document.head.append(style);
+    }
+    if (!pane.dataset.ready) {
+      pane.innerHTML = '<section class="cc-bl-panel"><h2>Changer un mot de passe Brokerlink</h2><p>Saisis l’adresse e-mail Brokerlink du collaborateur. Le site générera un mot de passe temporaire et demandera son remplacement à Brokerlink. Le mot de passe actuel ne peut pas être consulté et aucun e-mail ne sera envoyé : transmets le nouveau mot de passe au collaborateur en privé. Les sessions Brokerlink déjà ouvertes seront fermées.</p><form class="cc-bl-form" id="brokerlinkPasswordForm"><label for="brokerlinkAgentEmail">E-mail Brokerlink du collaborateur<input id="brokerlinkAgentEmail" name="agent" type="email" autocomplete="off" maxlength="254" required placeholder="nom@brokerlink.ch"></label><button class="btn primary" type="submit">Générer et changer</button></form><div class="cc-bl-result" id="brokerlinkPasswordResult" hidden><b>Nouveau mot de passe</b><code class="cc-bl-password" id="brokerlinkGeneratedPassword"></code><div class="cc-bl-actions"><button type="button" class="btn" data-copy-brokerlink-password>Copier</button><button type="button" class="btn" data-hide-brokerlink-password>Masquer</button></div></div><small class="cc-bl-status" id="brokerlinkPasswordStatus" role="status" aria-live="polite"></small></section>';
+      pane.dataset.ready = "true";
+    }
+  }
+  function showBrokerlinkPasswordView() {
+    if (currentProfile?.role !== "admin") return;
+    ensureBrokerlinkPasswordView();
+    document.querySelectorAll("#screen-settings > [id$='View']").forEach(view => { view.hidden = view.id !== "settingsBrokerlinkPasswordView"; });
+    document.querySelectorAll("#settingsTabBar [data-settings-view]").forEach(tab => {
+      const active = tab.dataset.settingsView === "brokerlinkPassword";
+      tab.classList.toggle("active", active); tab.classList.toggle("primary", active); tab.setAttribute("aria-selected", String(active));
+    });
+    $("settingsBrokerlinkPasswordView").hidden = false;
+  }
+  document.addEventListener("submit", async event => {
+    const form = event.target.closest("#brokerlinkPasswordForm");
+    if (!form) return;
+    event.preventDefault();
+    const email = $("brokerlinkAgentEmail").value.trim().toLowerCase();
+    const button = form.querySelector('button[type="submit"]'), status = $("brokerlinkPasswordStatus");
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) { status.textContent = "Saisis une adresse e-mail valide."; return; }
+    if (!window.confirm("Changer immédiatement le mot de passe Brokerlink de " + email + " ? Ses sessions ouvertes seront fermées. Tu devras lui transmettre le nouveau mot de passe en privé.")) return;
+    const password = generateTemporaryPassword();
+    button.disabled = true; status.textContent = "Demande de changement à Brokerlink…";
+    $("brokerlinkPasswordResult").hidden = true;
+    $("brokerlinkGeneratedPassword").textContent = "";
+    try {
+      const { data, error } = await client.functions.invoke("brokerlink-change-password", { body: { agent: email, password } });
+      if (error) throw new Error(data?.error || await edgeFailure(error, "Le changement a échoué."));
+      if (data?.error || !data?.updated) throw new Error(data?.error || "Brokerlink n’a pas confirmé le changement.");
+      $("brokerlinkGeneratedPassword").textContent = password;
+      $("brokerlinkPasswordResult").hidden = false;
+      status.textContent = "Mot de passe changé. Transmets-le en privé au collaborateur; son ancienne session a été fermée.";
+      form.reset();
+    } catch (error) {
+      status.textContent = error.message || "Impossible de changer ce mot de passe.";
+    } finally { button.disabled = false; }
+  });
+  document.addEventListener("click", event => {
+    if (!event.target.closest("[data-hide-brokerlink-password]")) return;
+    $("brokerlinkGeneratedPassword").textContent = "";
+    $("brokerlinkPasswordResult").hidden = true;
+    $("brokerlinkPasswordStatus").textContent = "Mot de passe masqué.";
+  });
+
   function generateTemporaryPassword() {
     const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
     const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
@@ -357,6 +425,7 @@
       catch (archiveError) { console.warn("Archived salary access sync:", archiveError); }
     }
     applyPermissions(profile.role);
+    if (profile.role === "admin") ensureBrokerlinkPasswordView();
     const badge = $("profileBadge"); if (badge) { badge.textContent = initial(profile.username); badge.title = "@" + profile.username + " · " + profile.role; }
     const name = $("activeUserName"); if (name) name.textContent = "";
     const sidebarName = $("sidebarAccountName"); if (sidebarName) sidebarName.textContent = profile.username;
@@ -873,6 +942,16 @@
     document.addEventListener("click", async event => {
       const tab = event.target.closest('#settingsTabBar [data-settings-view="salaryAccess"]');
       if (tab) { showSalaryAccessRegistry(); return; }
+      const brokerlinkTab = event.target.closest('#settingsTabBar [data-settings-view="brokerlinkPassword"]');
+      if (brokerlinkTab) { showBrokerlinkPasswordView(); return; }
+      const copyBrokerlinkPassword = event.target.closest("[data-copy-brokerlink-password]");
+      if (copyBrokerlinkPassword) {
+        const value = $("brokerlinkGeneratedPassword")?.textContent || "";
+        if (!value) return;
+        try { await navigator.clipboard.writeText(value); $("brokerlinkPasswordStatus").textContent = "Mot de passe copié. Transmets-le en privé au collaborateur."; }
+        catch { $("brokerlinkPasswordStatus").textContent = "Copie impossible depuis ce navigateur. Sélectionne le mot de passe affiché."; }
+        return;
+      }
       const open = event.target.closest("[data-open-salary-access]");
       if (open) { window.crmOpenEmployeeProfile?.(Number(open.dataset.openSalaryAccess), "attendance"); return; }
       const hidePassword = event.target.closest("[data-hide-salary-password]");
