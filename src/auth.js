@@ -314,7 +314,7 @@
     event.preventDefault();
     const email = $("brokerlinkAgentEmail").value.trim().toLowerCase();
     const button = form.querySelector('button[type="submit"]'), status = $("brokerlinkPasswordStatus");
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) { status.textContent = "Saisis une adresse e-mail valide."; return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { status.textContent = "Saisis une adresse e-mail valide."; return; }
     if (!window.confirm("Changer immédiatement le mot de passe Brokerlink de " + email + " ? Ses sessions ouvertes seront fermées. Tu devras lui transmettre le nouveau mot de passe en privé.")) return;
     const password = generateTemporaryPassword();
     button.disabled = true; status.textContent = "Demande de changement à Brokerlink…";
