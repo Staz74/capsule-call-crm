@@ -23,6 +23,21 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Versionner les ressources pour éviter le cache périmé
+        env:
+          ASSET_VERSION: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          path = "index.html"
+          with open(path, encoding="utf-8") as page:
+              html = page.read()
+          version = os.environ["ASSET_VERSION"]
+          html = re.sub(r'((?:src|href)="\\./src/[^"?]+)(?:\\?v=[^"]*)?"', rf'\\1?v={version}"', html)
+          with open(path, "w", encoding="utf-8") as page:
+              page.write(html)
+          PY
       - name: Upload static application
         uses: actions/upload-pages-artifact@v3
         with:
