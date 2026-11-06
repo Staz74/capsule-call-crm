@@ -107,7 +107,7 @@ Deno.serve(async(req:Request)=>{
     }
   }
   const appointmentAliases=["rdv_pris","rendez_vous","appointments","appointment_count"];
-  const openingAliases=["ouverture_validee","ouvertures_validees","ouverture_confirmee","ouvertures_confirmees","signature_confirmee","signatures_confirmees","signatures_validees","confirmed_signatures","validated_signatures","signed_accounts","signatures","openings","validated_openings"];
+  const openingAliases=["ouverture_validee","ouvertures_validees","ouverture_confirmee","ouvertures_confirmees","signature_confirmee","signatures_confirmees","signatures_validees","ouvertures_lpp","signatures_lca","confirmed_signatures","validated_signatures","signed_accounts","signatures","openings","validated_openings"];
   const perDay=new Map<string,number>(),opensByDay=new Map<string,number>();
   let appointmentTotal=0,openingsTotal=0,hasAppointmentData=false,hasOpeningData=false;
   for(const row of monthRows){
