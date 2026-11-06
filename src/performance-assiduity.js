@@ -73,7 +73,7 @@
     const initialized = choices.dataset.ready === "true";
     choices.innerHTML = employees.map((employee) => {
       const id = String(employee.id), checked = !initialized || previous.includes(id);
-      return '<label><input type="checkbox" data-' + prefix + '-employee value="' + esc(id) + '"' + (checked ? " checked" : "") + '> ' + esc(employee.name) + "</label>";
+      return '<label><input type="checkbox" data-' + prefix + '-employee value="' + esc(id) + '"' + (checked ? " checked" : "") + '><span>' + esc(employee.name) + "</span></label>";
     }).join("") || '<div class="assiduity-muted">Aucun collaborateur actif.</div>';
     choices.dataset.ready = "true";
     const selected = [...choices.querySelectorAll("input:checked")].map((input) => input.value);
