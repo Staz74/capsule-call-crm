@@ -10,8 +10,26 @@
   const removedOriginal = Storage.prototype.removeItem;
   const scopedKey = (key) => key.startsWith("capsule_") ? key.slice(8) : (key.startsWith("cc_onboarding_steps_") || key.startsWith("cc_attendance_")) ? "local:" + key : null;
   Storage.prototype.setItem = function(key, value) {
-    storedOriginal.call(this, key, value);
     const syncKey = this === localStorage && scopedKey(String(key));
+    // Profile cards can save an older in-memory employee array after the separate
+    // Brokerlink form has updated localStorage. Preserve the latest linked email.
+    if (syncKey === "employees" && this === localStorage) {
+      try {
+        const nextEmployees = JSON.parse(value);
+        const previousEmployees = JSON.parse(this.getItem("capsule_employees") || "[]");
+        if (Array.isArray(nextEmployees) && Array.isArray(previousEmployees)) {
+          const previousById = new Map(previousEmployees.map(employee => [String(employee.id), employee]));
+          value = JSON.stringify(nextEmployees.map(employee => {
+            const previous = previousById.get(String(employee.id));
+            if (previous?.brokerlinkEmail && !employee.brokerlinkEmail) {
+              return { ...employee, brokerlinkEmail: previous.brokerlinkEmail };
+            }
+            return employee;
+          }));
+        }
+      } catch {}
+    }
+    storedOriginal.call(this, key, value);
     if (syncKey && window.crmCloudSave && !(syncKey === "kpiRows" && window.crmBrokerlinkRemoteSave)) {
       let payload = value;
       try { payload = JSON.parse(value); } catch {}
@@ -23,6 +41,13 @@
     const syncKey = this === localStorage && scopedKey(String(key));
     if (syncKey && window.crmCloudDelete) window.crmCloudDelete(syncKey);
   };
+  if (typeof window.toast === "function") {
+    const originalToast = window.toast;
+    window.toast = (message, ...args) => originalToast(
+      String(message).replace("Fiche collaborateur enregistrée dans ce navigateur.", "Fiche enregistrée. Synchronisation avec la base en cours…"),
+      ...args
+    );
+  }
 
   const showMessage = (id, message, error = true) => {
     const el = $(id); if (!el) return;
