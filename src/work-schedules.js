@@ -261,6 +261,7 @@
       if (localStorage.getItem(storeKey) !== serialized) localStorage.setItem(storeKey,serialized);
     });
   }
+  window.crmRebuildAutomaticLates = rebuildAutomaticLates;
   const priorRenderPerformance = window.crmRenderPerformanceModule;
   if (typeof priorRenderPerformance === "function") {
     window.crmRenderPerformanceModule = (...args) => {
