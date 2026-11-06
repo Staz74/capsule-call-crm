@@ -17,8 +17,8 @@ Deno.serve(async (req: Request) => {
     const publishableKeys = JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") || "{}");
     const publicKey = publishableKeys.default || Deno.env.get("SUPABASE_ANON_KEY");
     const apiKey = Deno.env.get("BROKERLINK_API_KEY");
-    if (!url || !publicKey || !apiKey) {
-      console.error("Configuration Brokerlink absente (valeurs masquées).");
+    if (!url || !publicKey || !serviceKey || !apiKey) {
+      console.error("Configuration Brokerlink ou Supabase absente (valeurs masquées).");
       return json({ error: "Le service Brokerlink n’est pas configuré. Contacte l’administrateur." }, 503);
     }
     const authorization = req.headers.get("Authorization") || "";
@@ -29,7 +29,7 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await authClient.auth.getUser();
     if (authError || !user) return json({ error: "Session invalide. Reconnecte-toi." }, 401);
 
-    const adminClient = createClient(url, apiKeyForAdmin(), {
+    const adminClient = createClient(url, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false }
     });
     const { data: profile, error: profileError } = await adminClient.from("crm_profiles")
@@ -77,8 +77,3 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-function apiKeyForAdmin(): string {
-  return Deno.env.get("SUPABASE_SECRET_KEYS")
-    ? (JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}").default || "")
-    : (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "");
-}
