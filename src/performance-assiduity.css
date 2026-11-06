@@ -29,3 +29,32 @@
 .assiduity-muted{display:block;margin-top:3px;color:var(--muted);font-size:9px}
 @media(max-width:850px){.performance-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.performance-filter-people{grid-column:1/-1}}
 @media(max-width:700px){.performance-tabs,.attendance-subtabs{width:100%;overflow:auto}.performance-tabs button,.attendance-subtabs button{flex:1;padding:10px 8px}.performance-filters{grid-template-columns:1fr}.performance-filter-people{grid-column:auto}}
+
+
+/* Keep the employee picker above following panels and outside page clipping. */
+.page:has(#screen-performance.active){overflow:visible}
+.performance-filters{position:relative;z-index:20;overflow:visible!important}
+.performance-filter-people{position:relative;z-index:21;min-width:0}
+.performance-picker[open]{z-index:22}
+.performance-picker-menu{
+  z-index:1000;
+  width:min(380px,calc(100vw - 48px));
+  max-width:calc(100vw - 48px);
+  max-height:min(360px,calc(100dvh - 180px));
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.performance-picker-menu button{flex:0 0 auto}
+.performance-picker-options{
+  min-height:0;
+  max-height:min(300px,calc(100dvh - 250px));
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-color:#76565c #211a1b;
+}
+@media(max-width:700px){
+  .performance-filter-people,.performance-picker{width:100%}
+  .performance-picker-menu{width:100%;max-width:100%;left:0}
+  .performance-picker-options{max-height:min(44vh,300px)}
+}
