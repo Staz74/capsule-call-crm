@@ -51,6 +51,10 @@
       });
       if (error) throw error;
       cloudBase.set(key, payload);
+      if (key === "archivedEmployees" && currentProfile && ["admin", "rh", "chef_plateau"].includes(currentProfile.role)) {
+        const { data: archiveResult, error: archiveError } = await client.functions.invoke("manage-accounts", { body: { action:"deactivate-archived-callers" } });
+        if (archiveError || archiveResult?.error) throw archiveError || new Error(archiveResult.error);
+      }
       setSync("Synchronisé");
     });
     queues.set(key, next);
@@ -259,6 +263,10 @@
       return false;
     }
     if (refreshAppStateIfStale()) return false;
+    if (["admin", "rh", "chef_plateau"].includes(profile.role)) {
+      try { await invokeAdmin({ action:"deactivate-archived-callers" }); }
+      catch (archiveError) { console.warn("Archived salary access sync:", archiveError); }
+    }
     applyPermissions(profile.role);
     const badge = $("profileBadge"); if (badge) { badge.textContent = initial(profile.username); badge.title = "@" + profile.username + " · " + profile.role; }
     const name = $("activeUserName"); if (name) name.textContent = "";
