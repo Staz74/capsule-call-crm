@@ -12,7 +12,7 @@
   Storage.prototype.setItem = function(key, value) {
     storedOriginal.call(this, key, value);
     const syncKey = this === localStorage && scopedKey(String(key));
-    if (syncKey && window.crmCloudSave) {
+    if (syncKey && window.crmCloudSave && !(syncKey === "kpiRows" && window.crmBrokerlinkRemoteSave)) {
       let payload = value;
       try { payload = JSON.parse(value); } catch {}
       window.crmCloudSave(syncKey, payload);
