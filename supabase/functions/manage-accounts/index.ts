@@ -45,6 +45,25 @@ Deno.serve(async (req: Request) => {
       }
       return json({ updated: true, profile: updated });
     }
+    if (body.action === "deactivate-archived-callers") {
+      if (!["admin", "rh", "chef_plateau"].includes(profile.role) || profile.role !== user.app_metadata?.role) {
+        return json({ error: "Action réservée aux responsables autorisés." }, 403);
+      }
+      const { data: archivedState, error: archivedError } = await admin.from("crm_state").select("payload").eq("state_key", "archivedEmployees").maybeSingle();
+      if (archivedError) throw archivedError;
+      const archivedIds = new Set((Array.isArray(archivedState?.payload) ? archivedState.payload : [])
+        .map((item: any) => String(item?.id || "")).filter(Boolean));
+      if (!archivedIds.size) return json({ deactivated: 0 });
+      const { data: callerAccounts, error: callerError } = await admin.from("crm_profiles").select("id,employee_id,is_active").eq("role", "caller");
+      if (callerError) throw callerError;
+      const ids = (callerAccounts || []).filter((item: any) => item.is_active && archivedIds.has(String(item.employee_id))).map((item: any) => item.id);
+      if (ids.length) {
+        const { error: deactivateError } = await admin.from("crm_profiles").update({ is_active: false, updated_at: new Date().toISOString() }).in("id", ids);
+        if (deactivateError) throw deactivateError;
+      }
+      return json({ deactivated: ids.length });
+    }
+
     if (profile.role !== "admin" || user.app_metadata?.role !== "admin") return json({ error: "Réservé à l’administrateur." }, 403);
     if (body.action === "list") {
       const { data, error } = await admin.from("crm_profiles").select("id,username,display_name,role,is_active,created_at,employee_id").neq("role", "admin").order("display_name");
