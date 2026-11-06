@@ -195,7 +195,9 @@
     note.textContent=note.dataset.baseText+" · Brokerlink : "+message;
   }
   async function mergeBrokerlinkRows(rows,from,to) {
-    const incoming=Array.isArray(rows)?rows:[];
+    const allIncoming=Array.isArray(rows)?rows:[];
+    const linkedEmails=new Set((window.crmPerformanceContext?.().employees||[]).map(employee=>String(employee.brokerlinkEmail||employee.brokerlink_email||"").trim().toLowerCase()).filter(Boolean));
+    const incoming=linkedEmails.size?allIncoming.filter(row=>linkedEmails.has(brokerlinkEmail(row))):[];
     let existing=[];try{existing=JSON.parse(localStorage.getItem("capsule_kpiRows")||"[]")}catch{}
     if(!Array.isArray(existing))existing=[];
     const emails=new Set(incoming.map(brokerlinkEmail).filter(Boolean));
