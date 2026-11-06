@@ -156,31 +156,10 @@ Deno.serve(async (request: Request) => {
       if (page > 101) return reply({ error: "L’import dépasse la limite de pages autorisée." }, 413);
     } while (page <= lastPage);
 
-    const { data: currentKpiState, error: currentKpiError } = await supabase
-      .from("crm_state")
-      .select("payload")
-      .eq("state_key", "kpiRows")
-      .maybeSingle();
-    if (currentKpiError) throw currentKpiError;
-    const currentKpiRows: Record<string, unknown>[] = Array.isArray(currentKpiState?.payload)
-      ? currentKpiState.payload as Record<string, unknown>[]
-      : [];
-    const mergedKpiRows = new Map<string, Record<string, unknown>>();
-    const keyForKpi = (row: Record<string, unknown>) => {
-      if (row.source === "brokerlink-api") {
-        const email = normalizeEmail(row.email ?? row.brokerlink_email);
-        const date = parseDate(row.date);
-        if (email && date) return "api:" + email + ":" + date;
-      }
-      return "row:" + JSON.stringify(row);
-    };
-    for (const row of currentKpiRows) mergedKpiRows.set(keyForKpi(row), row);
-    for (const row of rows) mergedKpiRows.set(keyForKpi(row), row);
-    const mergedKpiPayload = [...mergedKpiRows.values()];
     const { error: kpiSaveError } = await supabase.rpc("crm_merge_state", {
       p_state_key: "kpiRows",
-      p_base: currentKpiRows,
-      p_next: mergedKpiPayload,
+      p_base: [],
+      p_next: rows,
     });
     if (kpiSaveError) throw kpiSaveError;
 
