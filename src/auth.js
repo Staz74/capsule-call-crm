@@ -471,7 +471,7 @@
       card.addEventListener("change",event=>{
         const select=event.target.closest("[name='scheduleType']");if(!select)return;
         const form=card.querySelector("#ccEmployeeWorkScheduleForm");
-        if(select.value==="special"){openCustomScheduleDialog(form,employee.workSchedule||{});}
+        if(select.value==="special"){form.dataset.previousScheduleType=select.dataset.lastScheduleType||employee.workSchedule?.type||"fullDay";openCustomScheduleDialog(form,employee.workSchedule||{});}else{select.dataset.lastScheduleType=select.value;form.dataset.previousScheduleType=select.value;}
       });
       card.addEventListener("click",async event=>{
         if(!event.target.closest("[data-save-employee-schedule]"))return;
