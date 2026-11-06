@@ -34,7 +34,7 @@ jobs:
           with open(path, encoding="utf-8") as page:
               html = page.read()
           version = os.environ["ASSET_VERSION"]
-          html = re.sub(r'((?:src|href)="\\./src/[^"?]+)(?:\\?v=[^"]*)?"', rf'\\1?v={version}"', html)
+          html = re.sub(r'((?:src|href)="\./src/[^"?]+)(?:\?v=[^"]*)?"', lambda match: match.group(1) + "?v=" + version + '"', html)
           with open(path, "w", encoding="utf-8") as page:
               page.write(html)
           PY
