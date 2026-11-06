@@ -686,8 +686,97 @@
     card.innerHTML='<div class="panel-head"><div><div class="panel-title">Accès collaborateur · Mon salaire</div><div class="panel-desc">Crée et gère l’accès personnel lié à cette fiche.</div></div></div><div class="cc-access-body">'+body+'</div>';
   }
 
+  function setupOnboardingStatusControls() {
+    const table = $("onboardingTable");
+    if (!table || table.dataset.ccStatusControls === "1") return;
+    table.dataset.ccStatusControls = "1";
+    const style = document.createElement("style");
+    style.textContent = `
+      #screen-onboarding #onboardingTable .person > div:last-child > b {
+        color: #f6e7e9 !important; font-size: 14px !important; font-weight: 750 !important; line-height: 1.3;
+      }
+      #screen-onboarding #onboardingTable .person > div:last-child > small {
+        color: #ccb9bc !important; font-size: 11px !important;
+      }
+      #screen-onboarding #onboardingTable .cc-onboard-status-select {
+        box-sizing: border-box; min-width: 148px; max-width: 100%; padding: 7px 10px;
+        border: 1px solid #77535b; border-radius: 8px; background: #342629;
+        color: #f3dfe3; font: 700 11px inherit; cursor: pointer;
+      }
+      #screen-onboarding #onboardingTable .cc-onboard-status-select option {
+        background: #261f21; color: #f3dfe3;
+      }
+    `;
+    document.head.appendChild(style);
+
+    const paint = () => {
+      table.querySelectorAll('button[data-onboard-detail]').forEach(button => {
+        if (!button.textContent.trim().startsWith("Détails")) return;
+        const employeeId = Number(button.dataset.onboardDetail);
+        const employee = typeof employees !== "undefined" && Array.isArray(employees)
+          ? employees.find(item => Number(item.id) === employeeId) : null;
+        if (!employee) return;
+        const select = document.createElement("select");
+        select.className = "cc-onboard-status-select";
+        select.dataset.ccStatusEmployee = String(employeeId);
+        select.setAttribute("aria-label", "Modifier le statut de " + employee.name);
+        select.innerHTML = '<option value="" selected>Changer le statut…</option><option value="Débutant">Débutant</option><option value="Autonome">Autonomie</option>';
+        button.replaceWith(select);
+      });
+    };
+
+    table.addEventListener("click", event => {
+      if (event.target.closest(".cc-onboard-status-select")) event.stopPropagation();
+    });
+    table.addEventListener("change", event => {
+      const select = event.target.closest(".cc-onboard-status-select");
+      if (!select) return;
+      event.stopPropagation();
+      const employeeId = Number(select.dataset.ccStatusEmployee);
+      const employee = typeof employees !== "undefined" && Array.isArray(employees)
+        ? employees.find(item => Number(item.id) === employeeId) : null;
+      const nextStatus = select.value;
+      if (!employee || !["Débutant", "Autonome"].includes(nextStatus)) return;
+      const previousStatus = employee.status || "En onboarding";
+      if (previousStatus === nextStatus) { select.value = ""; return; }
+      const prompt = nextStatus === "Débutant"
+        ? "Passer " + employee.name + " au statut Débutant ? Le suivi renforcé sera appliqué."
+        : "Passer " + employee.name + " au statut Autonome ? Le rythme autonome sera appliqué.";
+      if (!window.confirm(prompt)) { select.value = ""; return; }
+
+      employee.status = nextStatus;
+      employee.progress = nextStatus === "Autonome" ? 100 : 80;
+      employee.step = nextStatus === "Autonome"
+        ? "Autonomie validée par le responsable"
+        : "Entrée en production";
+      try {
+        const key = "cc_onboarding_steps_" + employeeId;
+        const stages = JSON.parse(localStorage.getItem(key) || "{}");
+        for (let index = 0; index < 4; index++) stages[index] = "completed";
+        if (nextStatus === "Autonome") stages[4] = "completed";
+        else delete stages[4];
+        localStorage.setItem(key, JSON.stringify(stages));
+      } catch (error) { console.error("Onboarding status update:", error); }
+
+      if (typeof recordOnboardingHistory === "function") {
+        recordOnboardingHistory(employeeId, "Statut passé à " + nextStatus,
+          "Statut modifié depuis le parcours d’onboarding (" + previousStatus + " → " + nextStatus + ").");
+      }
+      localStorage.setItem("capsule_employees", JSON.stringify(employees));
+      if (typeof ensureMandatoryTasks === "function") ensureMandatoryTasks();
+      if (typeof renderEmployees === "function") renderEmployees();
+      if (typeof renderOnboarding === "function") renderOnboarding();
+      if (typeof renderDash === "function") renderDash();
+      if (typeof renderOnboardingDetail === "function") renderOnboardingDetail(employeeId);
+      if (typeof window.toast === "function") window.toast(employee.name + " est maintenant " + nextStatus + ".");
+    });
+
+    new MutationObserver(paint).observe(table, { childList: true, subtree: true });
+    paint();
+  }
+
   document.addEventListener("DOMContentLoaded", async () => {
-    setupLoginModePicker(); trackEmployeeProfile();
+    setupLoginModePicker(); trackEmployeeProfile(); setupOnboardingStatusControls();
     $("loginForm")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = $("loginForm"), button = form.querySelector('button[type="submit"]');
