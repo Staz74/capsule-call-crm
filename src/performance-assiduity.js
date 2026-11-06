@@ -216,6 +216,8 @@
     }
     const merged=[...retained,...uniqueIncoming.values()];
     localStorage.setItem("capsule_kpiRows",JSON.stringify(merged));
+    // Wait for the shared CRM state write before requesting the next date chunk.
+    if (typeof window.crmCloudSave === "function") await window.crmCloudSave("kpiRows", merged);
     render();
   }
   async function syncBrokerlink() {
