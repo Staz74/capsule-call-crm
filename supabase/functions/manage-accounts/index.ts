@@ -85,6 +85,23 @@ Deno.serve(async (req: Request) => {
       return json({ users: data || [] });
     }
 
+    if (body.action === "delete-crm-account") {
+      const id = String(body.id || "").trim();
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+        return json({ error: "Identifiant de compte invalide." }, 400);
+      }
+      const crmRoles = new Set(["rh", "chef_plateau", "directeur_operationnel", "imperator"]);
+      const { data: target, error: targetError } = await admin.from("crm_profiles")
+        .select("id,role").eq("id", id).maybeSingle();
+      if (targetError) throw targetError;
+      if (!target || !crmRoles.has(target.role)) {
+        return json({ error: "Seuls les comptes de gestion CRM peuvent être supprimés ici." }, 404);
+      }
+      const { error: deleteError } = await admin.auth.admin.deleteUser(id);
+      if (deleteError) throw deleteError;
+      return json({ deleted: true });
+    }
+
     if (body.action === "create") {
       const username = String(body.username || "").toLowerCase();
       const displayName = String(body.displayName || "").trim();
