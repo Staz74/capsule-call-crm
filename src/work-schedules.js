@@ -214,6 +214,8 @@
     return match ? match[1].slice(0,5) : "";
   };
   function rebuildAutomaticLates() {
+    const role = window.crmCurrentRole?.() || "";
+    if (!["admin","chef_plateau"].includes(role)) return;
     const employees = state().employees || [];
     let rows = [];
     try { rows = JSON.parse(localStorage.getItem("capsule_kpiRows") || "[]"); } catch {}
@@ -266,6 +268,8 @@
       return priorRenderPerformance(...args);
     };
   }
+  const authGate = $("#authGate");
+  if (authGate) new MutationObserver(() => { if (authGate.hidden) rebuildAutomaticLates(); }).observe(authGate,{attributes:true,attributeFilter:["hidden"]});
   renderSettings();
   rebuildAutomaticLates();
 })();
