@@ -456,49 +456,88 @@
     const warning=email?"":'<div class="cc-brokerlink-warning" role="alert">E-mail Brokerlink manquant : les KPI, signatures et premières connexions ne pourront pas être associés à cette fiche.</div>';
     card.innerHTML='<div class="panel-head"><div><div class="panel-title">Lien avec Brokerlink</div><div class="panel-desc">L’adresse e-mail Brokerlink sert à rapprocher les KPI et la première connexion de cette fiche.</div></div></div><div class="cc-brokerlink-body">'+warning+'<form id="ccBrokerlinkEmailForm"><label for="ccBrokerlinkEmailInput">E-mail Brokerlink</label><div class="cc-brokerlink-row"><input id="ccBrokerlinkEmailInput" name="brokerlinkEmail" type="email" autocomplete="email" maxlength="254" required value="'+escapeHtml(email)+'" placeholder="prenom.nom@brokerlink…"><button class="btn primary" type="submit">Enregistrer</button></div><small class="cc-brokerlink-status" aria-live="polite">'+(email?"Adresse liée à cette fiche.":"À renseigner pour activer le rapprochement des données.")+'</small></form></div>';
   }
+  const scheduleCss=document.createElement("style");scheduleCss.textContent=".cc-employee-schedule{grid-column:1/-1!important;background:#211d1d!important;border:1px solid #493d3c!important;color:#f3ecea!important}.cc-employee-schedule .panel-head{margin-bottom:12px}.cc-schedule-form{display:grid;grid-template-columns:minmax(180px,320px) 1fr auto;gap:12px;align-items:end}.cc-schedule-select-label,.cc-schedule-field{display:grid;gap:6px;font-size:10px;font-weight:700;color:#cbbbbb}.cc-schedule-select-label select,.cc-schedule-field input{width:100%;padding:10px;border:1px solid #493d3c;border-radius:8px;background:#292323!important;color:#f3ecea!important;color-scheme:dark;font:inherit}.cc-schedule-select-label option{background:#211d1d!important;color:#f3ecea!important}.cc-schedule-status{font-size:10px;line-height:1.5;color:#cbbbbb}.cc-schedule-dialog-shade{position:fixed;inset:0;z-index:1600;display:grid;place-items:center;padding:18px;background:#000b}.cc-schedule-dialog{width:min(520px,100%);padding:22px;border:1px solid #493d3c;border-radius:16px;background:#211d1d;color:#f3ecea;box-shadow:0 24px 70px #0009}.cc-schedule-dialog h2{margin:0 0 6px;font-size:19px}.cc-schedule-dialog p{margin:0 0 16px;color:#cbbbbb;font-size:11px;line-height:1.5}.cc-schedule-modal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.cc-schedule-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.cc-custom-schedule-error{display:block;color:#e59aa3;font-size:10px;margin-top:10px}@media(max-width:760px){.cc-schedule-form{grid-template-columns:1fr}.cc-schedule-form button{width:100%}}";document.head.appendChild(scheduleCss);
   function renderEmployeeScheduleCard() {
     if(!currentProfile||currentProfile.role==="caller")return;
-    const host=$("profileContent"),container=host?.querySelector(".attendance-crm-card");if(!container)return;
+    const host=$("profileContent"),container=host?.querySelector(".attendance-crm-card"),layout=host?.querySelector(".attendance-layout-new,.attendance-layout");if(!container||!layout)return;
     let employees=[];try{employees=JSON.parse(localStorage.getItem("capsule_employees")||"[]")}catch{}
     let employeeId=Number(window.crmSelectedProfileEmployeeId);
     if(!employeeId){const title=$("profileTitle")?.textContent?.trim();const matches=employees.filter(item=>item.name===title);if(matches.length===1)employeeId=Number(matches[0].id)}
     const employee=employees.find(item=>Number(item.id)===employeeId);if(!employee)return;
     let card=$("ccEmployeeWorkSchedule");
-    if(!card){card=document.createElement("section");card.id="ccEmployeeWorkSchedule";card.className="panel cc-employee-schedule";
-      container.append(card);
-      card.addEventListener("submit",async event=>{
-        const form=event.target;if(form.id!=="ccEmployeeWorkScheduleForm")return;
-        event.preventDefault();
-        const status=form.querySelector(".cc-schedule-status"),button=form.querySelector('button[type="submit"]');
-        const value=name=>String(form.querySelector('[name="'+name+'"]')?.value||"").trim();
-        const schedule={morningStart:value("morningStart"),morningEnd:value("morningEnd"),afternoonStart:value("afternoonStart"),afternoonEnd:value("afternoonEnd")};
-        const pairs=[["morningStart","morningEnd","matin"],["afternoonStart","afternoonEnd","après-midi"]];
-        for(const [start,end,label] of pairs){
-          if(Boolean(schedule[start])!==Boolean(schedule[end])){if(status)status.textContent="Pour le shift "+label+", renseigne l’heure de début et de fin, ou laisse les deux vides.";return}
-          if(schedule[start]&&schedule[end]&&schedule[end]<=schedule[start]){if(status)status.textContent="L’heure de fin doit être après l’heure de début ("+label+").";return}
+    if(!card){
+      card=document.createElement("section");card.id="ccEmployeeWorkSchedule";card.className="panel cc-employee-schedule";
+      layout.insertBefore(card,container);
+      card.addEventListener("change",event=>{
+        const select=event.target.closest("[name='scheduleType']");if(!select)return;
+        const form=card.querySelector("#ccEmployeeWorkScheduleForm");
+        if(select.value==="special"){openCustomScheduleDialog(form,employee.workSchedule||{});}
+      });
+      card.addEventListener("click",async event=>{
+        if(!event.target.closest("[data-save-employee-schedule]"))return;
+        const form=card.querySelector("#ccEmployeeWorkScheduleForm"),status=form?.querySelector(".cc-schedule-status"),button=event.target.closest("[data-save-employee-schedule]");
+        if(!form||!button)return;
+        const type=form.querySelector("[name='scheduleType']")?.value||"";
+        let schedule;
+        if(type==="special"){try{schedule=JSON.parse(form.dataset.customSchedule||"null")}catch{}}
+        else{
+          let rules={};try{rules=JSON.parse(localStorage.getItem("capsule_controlRules")||"{}")}catch{}
+          const template=rules.scheduleTemplates?.[type];
+          if(template&&templateValid(type,template))schedule={type,timezone:"Europe/Zurich",...template};
         }
+        if(!schedule){if(status)status.textContent=type==="special"?"Complète et enregistre les heures personnalisées.":"Configure d’abord cet horaire dans Paramètres → Horaires.";return;}
         button.disabled=true;if(status)status.textContent="Enregistrement des horaires…";
         try{
           let rows=[];try{rows=JSON.parse(localStorage.getItem("capsule_employees")||"[]")}catch{}
-          const selected=rows.find(item=>Number(item.id)===Number(window.crmSelectedProfileEmployeeId));
-          if(!selected)throw new Error("Fiche collaborateur introuvable. Rouvre-la puis réessaie.");
-          selected.workSchedule=schedule;
-          localStorage.setItem("capsule_employees",JSON.stringify(rows));
+          const selected=rows.find(item=>Number(item.id)===employeeId);if(!selected)throw new Error("Fiche collaborateur introuvable. Rouvre-la puis réessaie.");
+          selected.workSchedule=schedule;localStorage.setItem("capsule_employees",JSON.stringify(rows));
           const pending=queues.get("employees");if(pending)await pending;
-          if(status)status.textContent="Horaires enregistrés et synchronisés. La première connexion sera comparée au premier début de shift renseigné.";
-          card.dataset.signature="";
-          renderEmployeeScheduleCard();window.renderEmployees?.();window.renderDash?.();
+          if(status)status.textContent="Horaire enregistré et synchronisé pour Europe/Zurich. Le retard sera calculé depuis le premier shift.";
+          window.crmRebuildAutomaticLates?.();window.renderEmployees?.();window.renderDash?.();
+          setTimeout(renderEmployeeScheduleCard,0);
         }catch(error){if(status)status.textContent=error.message||"Impossible d’enregistrer les horaires."}
-        finally{const submit=card.querySelector('button[type="submit"]');if(submit)submit.disabled=false}
+        finally{button.disabled=false}
       });
     }
-    if(card.parentElement!==container)container.append(card);
-    const ws=employee.workSchedule||{},signature=employeeId+":"+["morningStart","morningEnd","afternoonStart","afternoonEnd"].map(key=>ws[key]||"").join("|");
+    if(card.parentElement!==layout)layout.insertBefore(card,container);
+    const ws=employee.workSchedule||{},hasTimes=!!(ws.morningStart||ws.afternoonStart),type=ws.type||(hasTimes?"special":"fullDay");
+    const signature=employeeId+":"+type+":"+["morningStart","morningEnd","afternoonStart","afternoonEnd"].map(key=>ws[key]||"").join("|");
     if(card.dataset.signature===signature)return;
     card.dataset.signature=signature;
-    const input=(name,label)=>'<label class="cc-schedule-field">'+label+'<input type="time" name="'+name+'" value="'+escapeHtml(ws[name]||"")+'"></label>';
-    const shift=ws.morningStart||ws.afternoonStart?"Les retards sont calculés depuis le premier shift renseigné (matin, sinon après-midi).":"Aucun shift renseigné : le calcul automatique des retards reste désactivé.";
-    card.innerHTML='<div class="panel-head"><div><div class="panel-title">Horaires prévus</div><div class="panel-desc">Renseigne les heures prévues pour cette personne. Laisse un shift vide s’il ne travaille pas sur cette plage.</div></div></div><form id="ccEmployeeWorkScheduleForm" class="cc-schedule-form"><div class="cc-schedule-group"><strong>Matin</strong><div class="cc-schedule-grid">'+input("morningStart","Début") + input("morningEnd","Fin")+'</div></div><div class="cc-schedule-group"><strong>Après-midi</strong><div class="cc-schedule-grid">'+input("afternoonStart","Reprise") + input("afternoonEnd","Fin")+'</div></div><div class="cc-schedule-footer"><small class="cc-schedule-status" aria-live="polite">'+shift+'</small><button class="btn primary" type="submit">Enregistrer les horaires</button></div></form>';
+    const options=[["fullDay","Journée complète"],["morning","Matinée"],["afternoon","Après-midi"],["special","Personnalisé"]].map(([value,label])=>'<option value="'+value+'"'+(type===value?" selected":"")+'>'+label+'</option>').join("");
+    const description=type==="special"?"Les heures personnalisées sont enregistrées sur cette fiche et utilisées pour calculer le retard.":"Les heures de ce modèle sont définies dans Paramètres → Horaires.";
+    card.innerHTML='<div class="panel-head"><div><div class="panel-title">Horaire prévu</div><div class="panel-desc">Choisis le rythme de travail de cette personne.</div></div></div><form id="ccEmployeeWorkScheduleForm" class="cc-schedule-form"><label class="cc-schedule-select-label">Type d’horaire<select name="scheduleType">'+options+'</select></label><small class="cc-schedule-status" aria-live="polite">'+description+'</small><button class="btn primary" type="button" data-save-employee-schedule>Enregistrer l’horaire</button></form>';
+    const form=card.querySelector("#ccEmployeeWorkScheduleForm");
+    if(type==="special")form.dataset.customSchedule=JSON.stringify({type:"special",timezone:"Europe/Zurich",morningStart:ws.morningStart||"",morningEnd:ws.morningEnd||"",afternoonStart:ws.afternoonStart||"",afternoonEnd:ws.afternoonEnd||""});
+  }
+  function templateValid(type,t){
+    const m=!!t?.morningStart&&!!t?.morningEnd,a=!!t?.afternoonStart&&!!t?.afternoonEnd;
+    if(type==="fullDay")return m&&a;if(type==="morning")return m&&!t.afternoonStart&&!t.afternoonEnd;if(type==="afternoon")return a&&!t.morningStart&&!t.morningEnd;return false;
+  }
+  function openCustomScheduleDialog(form,existing={}){
+    if(!form)return;
+    if($("ccCustomScheduleDialog"))return;
+    const previous=form.dataset.previousScheduleType||"";
+    const current=(()=>{try{return JSON.parse(form.dataset.customSchedule||"{}")}catch{return {}}})();
+    const value=key=>current[key]||existing[key]||"";
+    const shade=document.createElement("div");shade.id="ccCustomScheduleDialog";shade.className="cc-schedule-dialog-shade";
+    const input=(key,label)=>'<label class="cc-schedule-field">'+label+'<input type="time" name="'+key+'" value="'+escapeHtml(value(key))+'"></label>';
+    shade.innerHTML='<section class="cc-schedule-dialog" role="dialog" aria-modal="true" aria-labelledby="ccCustomScheduleTitle"><h2 id="ccCustomScheduleTitle">Horaire personnalisé</h2><p>Renseigne une ou deux plages de travail. Les heures sont enregistrées dans le fuseau suisse.</p><div class="cc-schedule-modal-grid">'+input("morningStart","Début matinée")+input("morningEnd","Fin matinée")+input("afternoonStart","Début après-midi")+input("afternoonEnd","Fin après-midi")+'</div><small class="cc-custom-schedule-error" aria-live="polite"></small><div class="cc-schedule-dialog-actions"><button type="button" class="btn" data-custom-cancel>Annuler</button><button type="button" class="btn primary" data-custom-save>Enregistrer les heures</button></div></section>';
+    document.body.appendChild(shade);
+    const close=()=>{shade.remove();if(!form.dataset.customSchedule){const select=form.querySelector("[name='scheduleType']");if(select&&previous)select.value=previous;}};
+    shade.querySelector("[data-custom-cancel]").addEventListener("click",close);
+    shade.addEventListener("click",event=>{if(event.target===shade)close()});
+    shade.querySelector("[data-custom-save]").addEventListener("click",()=>{
+      const get=key=>shade.querySelector('[name="'+key+'"]').value;
+      const schedule={type:"special",timezone:"Europe/Zurich",morningStart:get("morningStart"),morningEnd:get("morningEnd"),afternoonStart:get("afternoonStart"),afternoonEnd:get("afternoonEnd")};
+      const pairInvalid=(schedule.morningStart&&!schedule.morningEnd)||(!schedule.morningStart&&schedule.morningEnd)||(schedule.afternoonStart&&!schedule.afternoonEnd)||(!schedule.afternoonStart&&schedule.afternoonEnd);
+      const hasShift=(schedule.morningStart&&schedule.morningEnd)||(schedule.afternoonStart&&schedule.afternoonEnd);
+      const endInvalid=(schedule.morningStart&&schedule.morningEnd<=schedule.morningStart)||(schedule.afternoonStart&&schedule.afternoonEnd<=schedule.afternoonStart);
+      if(pairInvalid||!hasShift||endInvalid){shade.querySelector(".cc-custom-schedule-error").textContent="Renseigne au moins une plage complète avec une heure de fin après le début.";return;}
+      form.dataset.customSchedule=JSON.stringify(schedule);form.dataset.previousScheduleType="special";
+      shade.remove();
+      const status=form.querySelector(".cc-schedule-status");if(status)status.textContent="Heures personnalisées prêtes à être enregistrées sur la fiche.";
+    });
   }
   function renderEmployeeSalaryAccessCard() {
     if(currentProfile?.role!=="admin")return;
