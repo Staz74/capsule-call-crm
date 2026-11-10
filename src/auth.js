@@ -3,6 +3,7 @@
   const client = window.supabase.createClient(cfg.url, cfg.publishableKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
   window.crmSupabase = client;
   let currentUser = null, currentProfile = null, cloudReady = false, bootstrapCodeVisible = false, accountCache = [], selectedLoginMode = "staff";
+  let liveEmployeeStateVersion = null, liveCollaboratorRefreshPending = false, liveCollaboratorRefreshTimer = null, liveCollaboratorWatcherStarted = false, liveCollaboratorLogWarned = false;
   const queues = new Map(), cloudBase = new Map();
   const $ = (id) => document.getElementById(id);
   const dataKeys = ["employees","candidates","archivedEmployees","archivedCandidates","appPermissions","tasks","taskHistory","qualityHistory","coachingHistory","synthesisActions","onboardingHistory","attendanceHistory","reports","meetings","docs","kpiRows","controlRules"];
@@ -686,6 +687,65 @@
     await client.auth.signOut(); currentUser = currentProfile = null; location.reload();
   };
 
+  async function applyRemoteCollaboratorRefresh() {
+    if (!liveCollaboratorRefreshPending || !currentUser || !cloudReady) return;
+    const modalOpen = $("modalbg")?.classList.contains("open");
+    const active = document.activeElement;
+    const editingField = active?.matches?.("input,textarea,select,[contenteditable='true']") && active.id !== "globalSearch";
+    if (modalOpen || editingField) {
+      window.clearTimeout(liveCollaboratorRefreshTimer);
+      liveCollaboratorRefreshTimer = window.setTimeout(applyRemoteCollaboratorRefresh, 1500);
+      return;
+    }
+    liveCollaboratorRefreshPending = false;
+    try {
+      await Promise.allSettled([...queues.values()]);
+      await syncState();
+      if (!refreshAppStateIfStale()) {
+        window.renderEmployees?.();
+        window.renderOnboarding?.();
+        window.renderDash?.();
+        window.renderTasks?.();
+      }
+    } catch (error) {
+      console.warn("CRM remote refresh:", error);
+      liveCollaboratorRefreshPending = true;
+      liveCollaboratorRefreshTimer = window.setTimeout(applyRemoteCollaboratorRefresh, 5000);
+    }
+  }
+
+  async function pollRemoteCollaboratorChanges() {
+    if (!currentUser || !cloudReady || !window.crmCanPage?.("employees")) return;
+    const { data, error } = await client.from("crm_state").select("updated_at,updated_by").eq("state_key","employees").maybeSingle();
+    if (error) {
+      if (!liveCollaboratorLogWarned) { console.warn("CRM live collaborator sync:",error); liveCollaboratorLogWarned=true; }
+      return;
+    }
+    liveCollaboratorLogWarned=false;
+    const version = data?.updated_at || null;
+    if (liveEmployeeStateVersion === null) { liveEmployeeStateVersion=version; return; }
+    if (version === liveEmployeeStateVersion) return;
+    const changedBy = data?.updated_by || null;
+    liveEmployeeStateVersion=version;
+    if (changedBy === currentUser.id) return;
+    liveCollaboratorRefreshPending=true;
+    window.clearTimeout(liveCollaboratorRefreshTimer);
+    liveCollaboratorRefreshTimer=window.setTimeout(applyRemoteCollaboratorRefresh,600);
+  }
+
+  async function setupLiveCollaboratorSync() {
+    if (!currentUser || !cloudReady || !window.crmCanPage?.("employees")) return;
+    const { data, error } = await client.from("crm_state").select("updated_at,updated_by").eq("state_key","employees").maybeSingle();
+    if (error) { console.warn("CRM live collaborator sync setup:",error); return; }
+    liveEmployeeStateVersion=data?.updated_at || null;
+    if (liveCollaboratorWatcherStarted) return;
+    liveCollaboratorWatcherStarted=true;
+    window.setInterval(pollRemoteCollaboratorChanges,10000);
+    document.addEventListener("focusout",()=>{if(liveCollaboratorRefreshPending){window.clearTimeout(liveCollaboratorRefreshTimer);liveCollaboratorRefreshTimer=window.setTimeout(applyRemoteCollaboratorRefresh,250)}});
+    const modal=$("modalbg");
+    if(modal)new MutationObserver(()=>{if(liveCollaboratorRefreshPending&&!modal.classList.contains("open")){window.clearTimeout(liveCollaboratorRefreshTimer);liveCollaboratorRefreshTimer=window.setTimeout(applyRemoteCollaboratorRefresh,250)}}).observe(modal,{attributes:true,attributeFilter:["class"]});
+  }
+
   async function activate(session) {
     const user = session?.user;
     if (!user) return false;
@@ -710,6 +770,7 @@
       return false;
     }
     if (refreshAppStateIfStale()) return false;
+    await setupLiveCollaboratorSync();
     if (["admin", "rh", "chef_plateau"].includes(profile.role)) {
       try { await invokeAdmin({ action:"deactivate-archived-callers" }); }
       catch (archiveError) { console.warn("Archived salary access sync:", archiveError); }
