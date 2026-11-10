@@ -4,6 +4,7 @@
   window.crmSupabase = client;
   let currentUser = null, currentProfile = null, cloudReady = false, bootstrapCodeVisible = false, accountCache = [], selectedLoginMode = "staff";
   let liveEmployeeStateVersion = null, liveCollaboratorRefreshPending = false, liveCollaboratorRefreshTimer = null, liveCollaboratorWatcherStarted = false, liveCollaboratorLogWarned = false;
+  const liveStateVersions = new Map();
   const queues = new Map(), cloudBase = new Map();
   const $ = (id) => document.getElementById(id);
   function taskBoardDate() { return typeof dashboardZurichDate === "function" ? dashboardZurichDate() : new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()); }
@@ -756,23 +757,28 @@
     }
   }
 
+  function scheduleRemoteStateRefresh() {
+    if (!currentUser || !cloudReady) return;
+    liveCollaboratorRefreshPending=true;
+    window.clearTimeout(liveCollaboratorRefreshTimer);
+    liveCollaboratorRefreshTimer=window.setTimeout(applyRemoteCollaboratorRefresh,250);
+  }
   async function pollRemoteCollaboratorChanges() {
-    if (!currentUser || !cloudReady || !window.crmCanPage?.("employees")) return;
-    const { data, error } = await client.from("crm_state").select("updated_at,updated_by").eq("state_key","employees").maybeSingle();
+    if (!currentUser || !cloudReady) return;
+    const { data, error } = await client.from("crm_state").select("state_key,updated_at").in("state_key",dataKeys);
     if (error) {
-      if (!liveCollaboratorLogWarned) { console.warn("CRM live collaborator sync:",error); liveCollaboratorLogWarned=true; }
+      if (!liveCollaboratorLogWarned) { console.warn("CRM live state fallback sync:",error); liveCollaboratorLogWarned=true; }
       return;
     }
     liveCollaboratorLogWarned=false;
-    const version = data?.updated_at || null;
-    if (liveEmployeeStateVersion === null) { liveEmployeeStateVersion=version; return; }
-    if (version === liveEmployeeStateVersion) return;
-    const changedBy = data?.updated_by || null;
-    liveEmployeeStateVersion=version;
-    if (changedBy === currentUser.id) return;
-    liveCollaboratorRefreshPending=true;
-    window.clearTimeout(liveCollaboratorRefreshTimer);
-    liveCollaboratorRefreshTimer=window.setTimeout(applyRemoteCollaboratorRefresh,600);
+    let changed=false;
+    for (const row of data||[]) {
+      const version=row?.updated_at||null, key=row?.state_key;
+      if (!key) continue;
+      if (!liveStateVersions.has(key)) { liveStateVersions.set(key,version); continue; }
+      if (liveStateVersions.get(key)!==version) { liveStateVersions.set(key,version); changed=true; }
+    }
+    if (changed) scheduleRemoteStateRefresh();
   }
 
   function crmLocalData(key, fallback) {
@@ -880,16 +886,28 @@
     paint();
   }
   async function setupLiveCollaboratorSync() {
-    if (!currentUser || !cloudReady || !window.crmCanPage?.("employees")) return;
-    const { data, error } = await client.from("crm_state").select("updated_at,updated_by").eq("state_key","employees").maybeSingle();
-    if (error) { console.warn("CRM live collaborator sync setup:",error); return; }
-    liveEmployeeStateVersion=data?.updated_at || null;
-    if (liveCollaboratorWatcherStarted) return;
-    liveCollaboratorWatcherStarted=true;
-    window.setInterval(pollRemoteCollaboratorChanges,10000);
-    document.addEventListener("focusout",()=>{if(liveCollaboratorRefreshPending){window.clearTimeout(liveCollaboratorRefreshTimer);liveCollaboratorRefreshTimer=window.setTimeout(applyRemoteCollaboratorRefresh,250)}});
-    const modal=$("modalbg");
-    if(modal)new MutationObserver(()=>{if(liveCollaboratorRefreshPending&&!modal.classList.contains("open")){window.clearTimeout(liveCollaboratorRefreshTimer);liveCollaboratorRefreshTimer=window.setTimeout(applyRemoteCollaboratorRefresh,250)}}).observe(modal,{attributes:true,attributeFilter:["class"]});
+    if (!currentUser || !cloudReady) return;
+    const { data, error } = await client.from("crm_state").select("state_key,updated_at").in("state_key",dataKeys);
+    if (error) { console.warn("CRM live state sync setup:",error); }
+    else for (const row of data||[]) liveStateVersions.set(row.state_key,row.updated_at||null);
+    if (!liveCollaboratorWatcherStarted) {
+      liveCollaboratorWatcherStarted=true;
+      window.setInterval(pollRemoteCollaboratorChanges,15000);
+      document.addEventListener("focusout",()=>{if(liveCollaboratorRefreshPending){window.clearTimeout(liveCollaboratorRefreshTimer);liveCollaboratorRefreshTimer=window.setTimeout(applyRemoteCollaboratorRefresh,250)}});
+      const modal=$("modalbg");
+      if(modal)new MutationObserver(()=>{if(liveCollaboratorRefreshPending&&!modal.classList.contains("open")){window.clearTimeout(liveCollaboratorRefreshTimer);liveCollaboratorRefreshTimer=window.setTimeout(applyRemoteCollaboratorRefresh,250)}}).observe(modal,{attributes:true,attributeFilter:["class"]});
+    }
+    if (!window.ccCrmStateRealtimeChannel) {
+      window.ccCrmStateRealtimeChannel=client.channel("crm-state-live")
+        .on("postgres_changes",{event:"*",schema:"public",table:"crm_state",filter:"state_key=neq.kpiRows"},payload=>{
+          const row=payload?.new||payload?.old;
+          if(row?.state_key&&row?.updated_at)liveStateVersions.set(row.state_key,row.updated_at);
+          scheduleRemoteStateRefresh();
+        })
+        .subscribe(status=>{
+          if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")console.warn("CRM Realtime is temporarily unavailable; automatic polling remains active.");
+        });
+    }
   }
 
   async function activate(session) {
