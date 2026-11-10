@@ -30,6 +30,9 @@
       } catch {}
     }
     storedOriginal.call(this, key, value);
+    if (["employees","tasks","kpiRows"].includes(syncKey) || String(syncKey || "").startsWith("local:cc_attendance_")) {
+      window.dispatchEvent(new Event("cc:dashboard-data-updated"));
+    }
     if (syncKey && window.crmCloudSave && !(syncKey === "kpiRows" && window.crmBrokerlinkRemoteSave)) {
       let payload = value;
       try { payload = JSON.parse(value); } catch {}
@@ -272,6 +275,253 @@
     $("settingsSalaryAccessView").hidden = false;
   }
 
+
+  let dashboardOperationalTimer = 0, dashboardKpiCacheRaw = null, dashboardKpiCache = [];
+  function dashboardZurichDate() {
+    const values = Object.fromEntries(new Intl.DateTimeFormat("en", {
+      timeZone:"Europe/Zurich", year:"numeric", month:"2-digit", day:"2-digit"
+    }).formatToParts(new Date()).map(part => [part.type, part.value]));
+    return values.year + "-" + values.month + "-" + values.day;
+  }
+  function dashboardShiftIso(date, days) {
+    const value = new Date(date + "T12:00:00Z");
+    value.setUTCDate(value.getUTCDate() + days);
+    return value.toISOString().slice(0,10);
+  }
+  function dashboardWeekStart(date) {
+    const day = new Date(date + "T12:00:00Z").getUTCDay();
+    return dashboardShiftIso(date, -((day + 6) % 7));
+  }
+  function dashboardWeekdays(from, to) {
+    const result = [];
+    for (let date = from; date <= to; date = dashboardShiftIso(date, 1)) {
+      const day = new Date(date + "T12:00:00Z").getUTCDay();
+      if (day !== 0 && day !== 6) result.push(date);
+    }
+    return result;
+  }
+  function dashboardData() {
+    let state = {};
+    try { state = window.crmGetLocalState?.() || {}; } catch {}
+    let kpis = [];
+    try {
+      const raw = localStorage.getItem("capsule_kpiRows") || "";
+      if (raw !== dashboardKpiCacheRaw) {
+        dashboardKpiCacheRaw = raw;
+        dashboardKpiCache = raw ? JSON.parse(raw) : [];
+      }
+      kpis = Array.isArray(dashboardKpiCache) ? dashboardKpiCache : [];
+    } catch { kpis = Array.isArray(state.kpiRows) ? state.kpiRows : []; }
+    if (!kpis.length && Array.isArray(state.kpiRows)) kpis = state.kpiRows;
+    return { ...state, kpiRows:kpis };
+  }
+  function dashboardEmail(row) {
+    return String(row?.brokerlink_email || row?.brokerlinkEmail || row?.email || "").trim().toLowerCase();
+  }
+  function dashboardMinutes(value) {
+    const text = String(value ?? "").trim();
+    if (!text) return null;
+    if (/\d{4}-\d\d-\d\dT/.test(text)) {
+      const date = new Date(text);
+      if (!Number.isNaN(date.getTime())) {
+        const parts = new Intl.DateTimeFormat("en", { timeZone:"Europe/Zurich", hour:"2-digit", minute:"2-digit", hourCycle:"h23" }).formatToParts(date);
+        const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+        return Number(values.hour) * 60 + Number(values.minute);
+      }
+    }
+    const match = text.match(/(?:^|T|\s)(\d{1,2}):(\d{2})/);
+    return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+  }
+  function dashboardScoreState(points, kind) {
+    if (!Number.isFinite(points)) return "missing";
+    if (kind === "performance") return points >= 7 ? "red" : points >= 4 ? "orange" : "green";
+    return points >= 7 ? "red" : points >= 4 ? "orange" : "green";
+  }
+  function dashboardSchedule(employee, rules) {
+    const assigned = employee?.workSchedule || {};
+    const template = rules?.scheduleTemplates?.[assigned.type] || {};
+    const value = (key) => assigned[key] || template[key] || "";
+    const start = assigned.type === "afternoon" ? value("afternoonStart") : (value("morningStart") || value("afternoonStart"));
+    const end = value("afternoonEnd") || value("morningEnd");
+    return { start:dashboardMinutes(start), end:dashboardMinutes(end), type:assigned.type || "" };
+  }
+  function dashboardAttendance(employee, rows, store, expectedDates, currentDate, rules) {
+    if (!expectedDates.length || !expectedDates.every(date => rows.has(date))) return { state:"missing", points:null, reason:"Données Brokerlink de la semaine en attente." };
+    const schedule = dashboardSchedule(employee, rules);
+    if (schedule.start === null) return { state:"missing", points:null, reason:"Horaire prévu à renseigner pour calculer les retards." };
+    const lates = Array.isArray(store?.lates) ? store.lates : [];
+    const absences = Array.isArray(store?.absences) ? store.absences : [];
+    const inWeek = (item) => String(item?.date || "").slice(0,10) >= expectedDates[0] && String(item?.date || "").slice(0,10) <= currentDate;
+    const manual = lates.filter(inWeek);
+    const manualLateDates = new Set(manual.map(item => String(item.date || "").slice(0,10)));
+    const lateMinutes = manual.map(item => Number(item.minutes ?? item.duration) || 0);
+    for (const date of expectedDates) {
+      if (manualLateDates.has(date)) continue;
+      const row = rows.get(date);
+      const firstLogin = row?.premiere_connexion ?? row?.first_login ?? row?.firstLogin;
+      const loginMinute = dashboardMinutes(firstLogin);
+      if (loginMinute !== null && loginMinute > schedule.start) lateMinutes.push(loginMinute - schedule.start);
+    }
+    const unexcused = absences.filter(item => inWeek(item) && String(item.justified || "").trim().toLowerCase() === "non").length;
+    const alerts = expectedDates.reduce((sum, date) => {
+      const row = rows.get(date) || {};
+      return sum + Math.max(0, Number(row.alertes_plus_10min ?? row.alertes ?? 0) || 0);
+    }, 0);
+    const delayPoints = lateMinutes.reduce((sum, minutes) => sum + (minutes <= 10 ? 1 : minutes <= 30 ? 2 : 3), 0);
+    const alertPoints = Math.floor(alerts / 3);
+    const points = delayPoints + unexcused * 4 + alertPoints;
+    const groups = { short:lateMinutes.filter(x => x > 0 && x <= 10).length, medium:lateMinutes.filter(x => x > 10 && x <= 30).length, long:lateMinutes.filter(x => x > 30).length };
+    const reasons = [];
+    if (groups.short) reasons.push(groups.short + " retard(s) 0–10 min");
+    if (groups.medium) reasons.push(groups.medium + " retard(s) 11–30 min");
+    if (groups.long) reasons.push(groups.long + " retard(s) > 30 min");
+    if (unexcused) reasons.push(unexcused + " absence(s) non justifiée(s)");
+    if (alerts) reasons.push(alerts + " alerte(s)" + (alertPoints ? " (" + alertPoints + " pt(s))" : ""));
+    return { state:dashboardScoreState(points,"attendance"), points, reasons:reasons.join(" · ") || "Aucun retard, absence non justifiée ou groupe de 3 alertes cette semaine.", alerts, delayCount:lateMinutes.length, unexcused };
+  }
+  function dashboardPerformance(employee, rows, expectedDates, currentDate, todayMinutes, rules) {
+    if (!expectedDates.length || !expectedDates.every(date => rows.has(date))) return { state:"missing", points:null, rdv:0, reason:"Données Brokerlink de la semaine en attente." };
+    const schedule = dashboardSchedule(employee, rules);
+    const todayRow = rows.get(currentDate);
+    const todayRdv = Math.max(0, Number(todayRow?.rdv_pris ?? 0) || 0);
+    const includeToday = schedule.end !== null && todayMinutes !== null && todayMinutes >= schedule.end;
+    const completeDates = expectedDates.filter(date => date < currentDate || (date === currentDate && includeToday));
+    if (!completeDates.length) return { state:"pending", points:null, rdv:0, todayRdv, reason:"La première journée de la semaine est encore en cours." };
+    const daily = completeDates.map(date => Math.max(0, Number(rows.get(date)?.rdv_pris ?? 0) || 0));
+    const points = daily.reduce((sum, count) => sum + (count >= 6 ? -3 : 3 - count), 0);
+    const rdv = daily.reduce((sum, count) => sum + count, 0);
+    return { state:dashboardScoreState(points,"performance"), points, rdv, todayRdv:includeToday ? 0 : todayRdv, reason:(includeToday ? "Résultat cumulé des journées terminées." : "Journées terminées; aujourd’hui en cours.") };
+  }
+  function dashboardSignalMarkup(label, status, points, detail) {
+    const state = status === "red" ? "Rouge" : status === "orange" ? "Orange" : status === "green" ? "Vert" : status === "pending" ? "En cours" : "En attente";
+    const score = Number.isFinite(points) ? (label === "Performance" && points < 0 ? "−" + Math.abs(points) : (label === "Performance" ? "+" : "") + points) + " pt" + (Math.abs(points) === 1 ? "" : "s") : state;
+    const hint = detail ? ' title="' + escapeHtml(detail) + '"' : "";
+    return '<div class="cc-dash-signal ' + status + '"' + hint + '><span class="cc-dash-dot" aria-hidden="true"></span><small>' + label.toUpperCase() + '</small><b>' + escapeHtml(score) + '</b></div>';
+  }
+  function renderDashboardOperationalData() {
+    const host = $("ccDashboardWatchList");
+    if (!host) return;
+    const state = dashboardData(), employees = (state.employees || []).filter(employee => !employee.archivedAt && ["Actif","Autonome","Débutant"].includes(employee.status));
+    const now = new Date(), today = dashboardZurichDate(), monday = dashboardWeekStart(today);
+    const expectedDates = dashboardWeekdays(monday, today);
+    const nowParts = Object.fromEntries(new Intl.DateTimeFormat("en", { timeZone:"Europe/Zurich", hour:"2-digit", minute:"2-digit", hourCycle:"h23" }).formatToParts(now).map(part => [part.type, part.value]));
+    const todayMinutes = Number(nowParts.hour) * 60 + Number(nowParts.minute);
+    const kpiByEmail = new Map();
+    for (const row of state.kpiRows || []) {
+      const email = dashboardEmail(row), date = String(row?.date || "").slice(0,10);
+      if (!email || date < monday || date > today) continue;
+      if (!kpiByEmail.has(email)) kpiByEmail.set(email, new Map());
+      const dates = kpiByEmail.get(email);
+      const existing = dates.get(date);
+      if (!existing || row.source === "brokerlink-api") dates.set(date, row);
+    }
+    const records = [];
+    for (const employee of employees) {
+      const email = String(employee.brokerlinkEmail || "").trim().toLowerCase();
+      const rows = kpiByEmail.get(email) || new Map();
+      const store = window.crmPerformanceContext?.().attendanceStore?.(employee.id) || {};
+      const attend = email ? dashboardAttendance(employee, rows, store, expectedDates, today, state.controlRules || {}) : { state:"missing", points:null, reason:"E-mail Brokerlink manquant sur la fiche." };
+      const performance = email ? dashboardPerformance(employee, rows, expectedDates, today, todayMinutes, state.controlRules || {}) : { state:"missing", points:null, rdv:0, reason:"E-mail Brokerlink manquant sur la fiche." };
+      records.push({employee,attend,performance});
+    }
+    const severity = status => status === "red" ? 2 : status === "orange" ? 1 : 0;
+    const flagged = records.filter(row => severity(row.attend.state) > 0 || severity(row.performance.state) > 0)
+      .sort((a,b) => Math.max(severity(b.attend.state),severity(b.performance.state)) - Math.max(severity(a.attend.state),severity(a.performance.state)) || (Number(b.attend.points)||0) - (Number(a.attend.points)||0) || (Number(b.performance.points)||0) - (Number(a.performance.points)||0));
+    const pending = records.filter(row => row.attend.state === "missing" || row.performance.state === "missing" || row.performance.state === "pending");
+    const greens = records.filter(row => row.attend.state === "green" && row.performance.state === "green").length;
+    const rowsHtml = flagged.map(({employee,attend,performance}) => {
+      const details = 'Assiduité : ' + (attend.points === null ? attend.reason : attend.points + ' pt(s) · ' + attend.reason) + ' | Performance : ' + (performance.points === null ? performance.reason : performance.points + ' pt(s), ' + performance.rdv + ' RDV · ' + performance.reason);
+      return '<button type="button" class="cc-dash-watch-row" data-open-dashboard-collaborator="' + escapeHtml(employee.id) + '" aria-label="Ouvrir la fiche de ' + escapeHtml(employee.name) + '. ' + escapeHtml(details) + '"><span class="cc-dash-watch-person"><span class="cc-dash-initial">' + escapeHtml(initial(employee.name)) + '</span><span><b>' + escapeHtml(employee.name) + '</b><small>Ouvrir la fiche · ' + (severity(attend.state) >= severity(performance.state) ? 'Assiduité ' + (attend.state === 'red' ? 'rouge' : 'orange') : 'Performance ' + (performance.state === 'red' ? 'rouge' : 'orange')) + '</small></span></span>' + dashboardSignalMarkup("Assiduité",attend.state,attend.points,attend.reason) + dashboardSignalMarkup("Performance",performance.state,performance.points,performance.reason) + '<span class="cc-dash-watch-reason">' + escapeHtml(details) + '</span></button>';
+    }).join("");
+    const pendingNote = pending.length ? '<div class="cc-dash-pending-note">' + pending.length + ' collaborateur(s) avec des données ou horaires en attente; leurs marqueurs restent neutres.</div>' : "";
+    const empty = !flagged.length ? '<div class="cc-dash-empty">' + (pending.length ? 'Les données Brokerlink de cette semaine ou certains horaires ne sont pas encore disponibles. Les voyants restent neutres jusqu’à leur réception.' : 'Aucun indicateur orange ou rouge cette semaine.') + '</div>' : "";
+    host.innerHTML = rowsHtml + empty + pendingNote + (greens ? '<div class="cc-dash-green-summary"><span class="cc-dash-dot"></span>' + greens + ' collaborateur(s) avec assiduité et performance au vert.</div>' : "");
+  }
+  function renderDashboardTodayTasks() {
+    const list = $("dashTasks");
+    if (!list) return;
+    const state = dashboardData(), today = dashboardZurichDate();
+    const tasks = (state.tasks || []).filter(task => task?.status !== "Terminée" && task?.due && String(task.due).slice(0,10) <= today)
+      .sort((a,b) => String(a.due).localeCompare(String(b.due)) || String(a.title).localeCompare(String(b.title))).slice(0,8);
+    list.innerHTML = tasks.length ? tasks.map(task => {
+      const due = String(task.due).slice(0,10), overdue = due < today;
+      const when = overdue ? 'En retard · ' + due : 'Aujourd’hui';
+      return '<div class="dashboard-task dashboard-task-clickable" data-task-open="' + escapeHtml(task.id) + '" role="button" tabindex="0"><div><b>' + escapeHtml(task.title || "Action à réaliser") + '</b><small>' + escapeHtml(task.desc || "") + '</small></div><div class="dashboard-task-meta"><span>' + escapeHtml(task.owner || "Non attribuée") + '</span><span class="' + (overdue ? 'cc-dash-overdue' : '') + '">' + escapeHtml(when) + '</span><span>' + escapeHtml(task.priority || "Normale") + '</span></div></div>';
+    }).join("") : '<div class="empty">Aucune tâche en retard ou prévue aujourd’hui. L’équipe est à jour.</div>';
+  }
+  function ensureDashboardOperationalView() {
+    const screen = $("screen-dashboard"), summary = screen?.querySelector(".dashboard-summary"), taskPanel = screen?.querySelector(".dashboard-tasks-panel");
+    if (!screen || !summary || !taskPanel) return;
+    let focus = $("ccDashboardFocus");
+    if (!focus) {
+      focus = document.createElement("section"); focus.id = "ccDashboardFocus"; focus.className = "cc-dashboard-focus";
+      focus.innerHTML = '<div class="cc-dashboard-today-slot"></div><section class="panel cc-dashboard-watch"><div class="panel-head"><div><div class="panel-title">Collaborateurs à accompagner</div><div class="panel-desc">Marqueurs hebdomadaires · les rouges apparaissent en premier.</div></div><span class="pill">Assiduité · Performance</span></div><div id="ccDashboardWatchList" class="cc-dash-watch-list"></div></section>';
+      summary.insertAdjacentElement("afterend", focus);
+    }
+    const slot = focus.querySelector(".cc-dashboard-today-slot");
+    if (taskPanel.parentElement !== slot) slot.appendChild(taskPanel);
+    taskPanel.style.marginTop = "0";
+    taskPanel.classList.add("cc-dashboard-tasks-panel");
+    const title = taskPanel.querySelector(".panel-title"); if (title) title.textContent = "À faire aujourd’hui";
+    const desc = taskPanel.querySelector(".panel-desc"); if (desc) desc.textContent = "Actions prévues aujourd’hui et éléments en retard, avec leur responsable.";
+    const styleId = "ccDashboardOperationalStyle";
+    if (!$(styleId)) {
+      const style = document.createElement("style"); style.id = styleId;
+      style.textContent = "#ccDashboardFocus{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,.9fr);gap:14px;align-items:start;margin:0 0 16px}#ccDashboardFocus .cc-dashboard-tasks-panel{margin:0!important;min-width:0}#ccDashboardFocus .dashboard-task{gap:12px;padding:12px 16px}#ccDashboardFocus .cc-dash-overdue{color:#f08e9a!important;font-weight:800}#ccDashboardFocus .cc-dashboard-watch{min-width:0}#ccDashboardFocus .cc-dash-watch-list{padding:2px 14px 12px}#ccDashboardFocus .cc-dash-watch-row{width:100%;border:0;border-top:1px solid #403637;background:transparent;color:#f3ecea;text-align:left;display:grid;grid-template-columns:minmax(0,1fr) 78px 78px;gap:8px;align-items:center;padding:11px 2px;cursor:pointer}#ccDashboardFocus .cc-dash-watch-row:hover{background:#ffffff06}#ccDashboardFocus .cc-dash-watch-person{display:flex;gap:9px;align-items:center;min-width:0}#ccDashboardFocus .cc-dash-initial{width:30px;height:30px;flex:0 0 30px;border-radius:10px;display:grid;place-items:center;background:#3b2c30;color:#f4d7db;font-size:10px;font-weight:800}#ccDashboardFocus .cc-dash-watch-person b{display:block;font-size:10px;color:#f2e8e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#ccDashboardFocus .cc-dash-watch-person small{display:block;margin-top:3px;color:#b9aaac;font-size:8px}#ccDashboardFocus .cc-dash-signal{display:grid;justify-items:center;gap:3px;min-width:0}#ccDashboardFocus .cc-dash-dot{width:13px;height:13px;border-radius:50%;display:block;background:#777;box-shadow:0 0 0 4px #7772,0 0 12px #7778}#ccDashboardFocus .cc-dash-signal.green .cc-dash-dot,#ccDashboardFocus .cc-dash-green-summary .cc-dash-dot{background:#70d6a0;box-shadow:0 0 0 4px #70d6a022,0 0 13px #70d6a099}#ccDashboardFocus .cc-dash-signal.orange .cc-dash-dot{background:#f2b85e;box-shadow:0 0 0 4px #f2b85e22,0 0 13px #f2b85e99}#ccDashboardFocus .cc-dash-signal.red .cc-dash-dot{background:#ff7180;box-shadow:0 0 0 4px #ff718022,0 0 13px #ff718099}#ccDashboardFocus .cc-dash-signal small{font-size:7px;color:#cdbfc1;font-weight:800;letter-spacing:.08em}#ccDashboardFocus .cc-dash-signal b{font-size:8px;color:#e9dadd;font-weight:750}#ccDashboardFocus .cc-dash-watch-reason{grid-column:1/-1;margin:0 0 0 39px;color:#bbaeb0;font-size:8px;line-height:1.5}#ccDashboardFocus .cc-dash-empty{padding:14px 4px;color:#cbbbbb;font-size:10px;line-height:1.6}#ccDashboardFocus .cc-dash-pending-note{border-top:1px solid #403637;padding:9px 2px;color:#bbaeb0;font-size:8px}#ccDashboardFocus .cc-dash-green-summary{border-top:1px solid #403637;padding:10px 2px 0;display:flex;gap:9px;align-items:center;color:#c9d9cf;font-size:9px}#ccDashboardFocus .cc-dash-green-summary .cc-dash-dot{width:9px;height:9px}@media(max-width:1060px){#ccDashboardFocus{grid-template-columns:1fr}#ccDashboardFocus .cc-dashboard-watch{min-width:0}}@media(max-width:700px){#ccDashboardFocus .cc-dash-watch-row{grid-template-columns:minmax(0,1fr) 65px 65px;gap:5px}#ccDashboardFocus .cc-dash-watch-person b{font-size:9px}#ccDashboardFocus .cc-dash-watch-reason{margin-left:0}#ccDashboardFocus .cc-dash-signal small{font-size:6px}}";
+      document.head.appendChild(style);
+    }
+    if (!window.crmDashboardRenderWrapped && typeof window.renderDash === "function") {
+      const originalRender = window.renderDash;
+      const wrappedRender = function(...args) {
+        const result = originalRender.apply(this, args);
+        window.setTimeout(renderDashboardOperationalData, 0);
+        window.setTimeout(renderDashboardTodayTasks, 0);
+        return result;
+      };
+      window.crmDashboardRenderWrapped = true;
+      window.renderDash = wrappedRender;
+    }
+    if (!window.ccDashboardDataEventsInstalled) {
+      window.ccDashboardDataEventsInstalled = true;
+      window.addEventListener("cc:dashboard-data-updated", () => {
+        window.clearTimeout(dashboardOperationalTimer);
+        dashboardOperationalTimer = window.setTimeout(() => {
+          renderDashboardOperationalData();
+          renderDashboardTodayTasks();
+        }, 80);
+      });
+      window.addEventListener("storage", event => {
+        if (event.key === "capsule_kpiRows" || event.key === "capsule_employees" || event.key === "capsule_tasks" || event.key?.startsWith("cc_attendance_")) {
+          window.setTimeout(() => { renderDashboardOperationalData(); renderDashboardTodayTasks(); }, 100);
+        }
+      });
+      document.addEventListener("click", event => {
+        const open = event.target.closest("[data-open-dashboard-collaborator]");
+        if (open) window.crmOpenEmployeeProfile?.(Number(open.dataset.openDashboardCollaborator), "attendance");
+      });
+      if (window.crmGo && !window.crmDashboardNavWrapped) {
+        const originalGo = window.crmGo;
+        window.crmGo = function(page, ...args) {
+          const result = originalGo.call(this, page, ...args);
+          if (page === "dashboard") window.setTimeout(() => { renderDashboardOperationalData(); renderDashboardTodayTasks(); }, 0);
+          return result;
+        };
+        window.crmDashboardNavWrapped = true;
+      }
+      let lastDay = dashboardZurichDate();
+      window.setInterval(() => {
+        const today = dashboardZurichDate();
+        if (today !== lastDay) {
+          lastDay = today;
+          renderDashboardOperationalData();
+          renderDashboardTodayTasks();
+        }
+      }, 60000);
+    }
+    renderDashboardOperationalData();
+    renderDashboardTodayTasks();
+  }
+
   function ensureBrokerlinkPasswordView() {
     if (currentProfile?.role !== "admin") return;
     const bar = $("settingsTabBar"), screen = $("screen-settings");
@@ -425,6 +675,7 @@
       catch (archiveError) { console.warn("Archived salary access sync:", archiveError); }
     }
     applyPermissions(profile.role);
+    if (window.crmCanPage?.("dashboard")) ensureDashboardOperationalView();
     if (profile.role === "admin") ensureBrokerlinkPasswordView();
     const badge = $("profileBadge"); if (badge) { badge.textContent = initial(profile.username); badge.title = "@" + profile.username + " · " + profile.role; }
     const name = $("activeUserName"); if (name) name.textContent = "";
