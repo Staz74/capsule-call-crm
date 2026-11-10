@@ -818,7 +818,7 @@
           const title=String(card.querySelector(".task-topline b")?.textContent||"").trim().toLocaleLowerCase("fr");
           if(!title||["ouvrir le formulaire","enregistrer le compte rendu"].includes(title))card.remove();
         });
-        const count=head.querySelector("span");if(count)count.textContent=String(lane.querySelectorAll(".task").length);
+        const count=head.querySelector("span"),nextCount=String(lane.querySelectorAll(".task").length);if(count&&count.textContent!==nextCount)count.textContent=nextCount;
       });
       board.querySelectorAll(".task-progress-btn").forEach(button=>button.remove());
     };
