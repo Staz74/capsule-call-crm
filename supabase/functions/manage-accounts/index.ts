@@ -78,6 +78,42 @@ Deno.serve(async (req: Request) => {
       return json({ deactivated: ids.length });
     }
 
+    if (body.action === "salary-access-list" || body.action === "salary-access-reset") {
+      let allowed = profile.role === "admin";
+      if (!allowed) {
+        const { data: permissionState, error: permissionError } = await admin.from("crm_state").select("payload").eq("state_key", "appPermissions").maybeSingle();
+        if (permissionError) throw permissionError;
+        const modules = permissionState?.payload?.moduleAccess?.[profile.role];
+        allowed = Array.isArray(modules) && modules.includes("salaryAccess");
+      }
+      if (!allowed) return json({ error: "L’accès aux comptes Mon Salaire n’est pas autorisé pour ce rôle." }, 403);
+      if (body.action === "salary-access-list") {
+        const { data: employeeState, error: employeeError } = await admin.from("crm_state").select("payload").eq("state_key", "employees").maybeSingle();
+        if (employeeError) throw employeeError;
+        const activeIds = new Set((Array.isArray(employeeState?.payload) ? employeeState.payload : [])
+          .filter((item: any) => !item.archivedAt && item.status !== "Sorti")
+          .map((item: any) => String(item.id)));
+        const { data: users, error: listError } = await admin.from("crm_profiles")
+          .select("id,username,display_name,role,is_active,employee_id,created_at")
+          .eq("role", "caller").not("employee_id", "is", null).order("display_name");
+        if (listError) throw listError;
+        return json({ users: (users || []).filter((item: any) => activeIds.has(String(item.employee_id))) });
+      }
+      const id = String(body.id || "");
+      const password = String(body.password || "");
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id) || password.length < 8 || password.length > 72) {
+        return json({ error: "Compte ou mot de passe invalide (8 à 72 caractères)." }, 400);
+      }
+      const { data: target, error: targetError } = await admin.from("crm_profiles").select("id,role,employee_id").eq("id", id).maybeSingle();
+      if (targetError) throw targetError;
+      if (!target || target.role !== "caller" || !target.employee_id) return json({ error: "Cet accès Mon Salaire est introuvable." }, 404);
+      const { error: passwordError } = await admin.auth.admin.updateUserById(id, { password });
+      if (passwordError) throw passwordError;
+      const { error: profileUpdateError } = await admin.from("crm_profiles").update({ is_active: true, updated_at: new Date().toISOString() }).eq("id", id);
+      if (profileUpdateError) throw profileUpdateError;
+      return json({ updated: true, reactivated: true });
+    }
+
     if (profile.role !== "admin" || user.app_metadata?.role !== "admin") return json({ error: "Réservé à l’administrateur." }, 403);
     if (body.action === "list") {
       const { data, error } = await admin.from("crm_profiles").select("id,username,display_name,role,is_active,created_at,employee_id").neq("role", "admin").order("display_name");
