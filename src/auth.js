@@ -770,12 +770,12 @@
       return false;
     }
     if (refreshAppStateIfStale()) return false;
-    await setupLiveCollaboratorSync();
     if (["admin", "rh", "chef_plateau"].includes(profile.role)) {
       try { await invokeAdmin({ action:"deactivate-archived-callers" }); }
       catch (archiveError) { console.warn("Archived salary access sync:", archiveError); }
     }
     applyPermissions(profile.role);
+    await setupLiveCollaboratorSync();
     if (window.crmCanPage?.("dashboard")) ensureDashboardOperationalView();
     if (profile.role === "admin") ensureBrokerlinkPasswordView();
     const badge = $("profileBadge"); if (badge) { badge.textContent = initial(profile.username); badge.title = "@" + profile.username + " · " + profile.role; }
