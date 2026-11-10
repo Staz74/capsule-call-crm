@@ -398,6 +398,35 @@
     const hint = detail ? ' title="' + escapeHtml(detail) + '"' : "";
     return '<div class="cc-dash-signal ' + status + '"' + hint + '><span class="cc-dash-dot" aria-hidden="true"></span><small>' + label.toUpperCase() + '</small><b>' + escapeHtml(score) + '</b></div>';
   }
+  function renderEmployeeTableSignals(records) {
+    const table = $("employeesTable");
+    if (!table) return;
+    const byId = new Map(records.map(record => [String(record.employee.id), record]));
+    if (!$("ccEmployeeSignalStyle")) {
+      const style = document.createElement("style");
+      style.id = "ccEmployeeSignalStyle";
+      style.textContent = ".cc-employee-signal-set{display:inline-flex;vertical-align:middle;align-items:center;gap:6px;margin-left:10px;flex-wrap:wrap}.cc-employee-signal{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border:1px solid #514143;border-radius:999px;background:#2b2324;color:#e9dfe0;white-space:nowrap}.cc-employee-signal small{font-size:9px;font-weight:800;letter-spacing:.035em;color:#e9dfe0}.cc-employee-signal .cc-dash-dot{width:8px;height:8px;box-shadow:0 0 8px currentColor}.cc-employee-signal.green{color:#67d6a5;border-color:#376a54;background:#1d3029}.cc-employee-signal.orange{color:#f0b85c;border-color:#785e38;background:#342b20}.cc-employee-signal.red{color:#ef8190;border-color:#79424a;background:#382428}.cc-employee-signal.missing,.cc-employee-signal.pending{color:#aaa0a1}.cc-employee-signal.missing .cc-dash-dot,.cc-employee-signal.pending .cc-dash-dot{background:#8a8182;box-shadow:none}@media(max-width:800px){.cc-employee-signal-set{margin-left:6px;gap:4px}.cc-employee-signal{padding:2px 5px}.cc-employee-signal small{font-size:8px}}";
+      document.head.appendChild(style);
+    }
+    for (const row of table.querySelectorAll("tr.employee-click-row[data-profile]")) {
+      const id = String(row.dataset.profile), record = byId.get(id), cell = row.cells?.[0];
+      if (!cell || !record) continue;
+      let set = cell.querySelector(".cc-employee-signal-set");
+      if (!set) {
+        set = document.createElement("span");
+        set.className = "cc-employee-signal-set";
+        const name = cell.querySelector(".profile-name-button");
+        if (name) name.insertAdjacentElement("afterend", set);
+        else cell.appendChild(set);
+      }
+      const { attend, performance } = record;
+      const signature = [attend.state,attend.points,attend.reason,performance.state,performance.points,performance.rdv,performance.reason].join("|");
+      if (set.dataset.signature === signature) continue;
+      set.dataset.signature = signature;
+      const badge = (label, value, detail) => '<span class="cc-employee-signal ' + value.state + '" title="' + escapeHtml(label + ": " + (Number.isFinite(value.points) ? value.points + " point(s) · " : "") + detail) + '" aria-label="' + escapeHtml(label + ": " + detail) + '"><span class="cc-dash-dot" aria-hidden="true"></span><small>' + label.toUpperCase() + '</small></span>';
+      set.innerHTML = badge("Assiduité",attend,attend.reason) + badge("Performance",performance,(performance.reason || "") + (Number.isFinite(performance.rdv) ? " · " + performance.rdv + " RDV" : ""));
+    }
+  }
   function renderDashboardOperationalData() {
     const host = $("ccDashboardWatchList");
     if (!host) return;
@@ -424,6 +453,7 @@
       const performance = email ? dashboardPerformance(employee, rows, expectedDates, today, todayMinutes, state.controlRules || {}) : { state:"missing", points:null, rdv:0, reason:"E-mail Brokerlink manquant sur la fiche." };
       records.push({employee,attend,performance});
     }
+    renderEmployeeTableSignals(records);
     const severity = status => status === "red" ? 2 : status === "orange" ? 1 : 0;
     const flagged = records.filter(row => severity(row.attend.state) > 0 || severity(row.performance.state) > 0)
       .sort((a,b) => Math.max(severity(b.attend.state),severity(b.performance.state)) - Math.max(severity(a.attend.state),severity(a.performance.state)) || (Number(b.attend.points)||0) - (Number(a.attend.points)||0) || (Number(b.performance.points)||0) - (Number(a.performance.points)||0));
@@ -483,6 +513,15 @@
     }
     if (!window.ccDashboardDataEventsInstalled) {
       window.ccDashboardDataEventsInstalled = true;
+      const employeeTable = $("employeesTable");
+      if (employeeTable && !window.ccEmployeeSignalObserver) {
+        let employeeSignalTimer;
+        window.ccEmployeeSignalObserver = new MutationObserver(() => {
+          window.clearTimeout(employeeSignalTimer);
+          employeeSignalTimer = window.setTimeout(renderDashboardOperationalData, 80);
+        });
+        window.ccEmployeeSignalObserver.observe(employeeTable, { childList:true, subtree:true });
+      }
       window.addEventListener("cc:dashboard-data-updated", () => {
         window.clearTimeout(dashboardOperationalTimer);
         dashboardOperationalTimer = window.setTimeout(() => {
