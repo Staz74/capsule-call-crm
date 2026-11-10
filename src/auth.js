@@ -876,6 +876,94 @@
       raf=requestAnimationFrame(draw);
     });
   }
+  function renderProfileMonthlyMetrics() {
+    if (!currentProfile || currentProfile.role === "caller") return;
+    const employeeId = Number(window.crmSelectedProfileEmployeeId);
+    if (!employeeId) return;
+    let state = {};
+    try { state = window.crmGetLocalState?.() || {}; } catch {}
+    let employees = Array.isArray(state.employees) ? state.employees : [];
+    if (!employees.length) { try { employees = JSON.parse(localStorage.getItem("capsule_employees") || "[]"); } catch {} }
+    const employee = employees.find(item => Number(item.id) === employeeId);
+    if (!employee) return;
+    const launchDate = "2026-11-10";
+    const today = dashboardZurichDate();
+    const monthKey = value => String(value || "").slice(0,7);
+    const monthName = key => {
+      const [year,month] = key.split("-").map(Number);
+      return new Intl.DateTimeFormat("fr-FR",{month:"long",year:"numeric",timeZone:"Europe/Zurich"}).format(new Date(Date.UTC(year,month-1,15,12)));
+    };
+    const email = String(employee.brokerlinkEmail || "").trim().toLowerCase();
+    const rowsByDate = new Map();
+    if (email) for (const row of dashboardData().kpiRows || []) {
+      const date = String(row?.date || "").slice(0,10);
+      if (dashboardEmail(row) !== email || date < launchDate || date > today) continue;
+      const previous = rowsByDate.get(date);
+      if (!previous || row.source === "brokerlink-api") rowsByDate.set(date,row);
+    }
+    const appointmentRows = [...rowsByDate.values()];
+    const appointments = appointmentRows.reduce((sum,row) => sum + Math.max(0,Number(row?.rdv_pris ?? row?.appointments ?? 0) || 0),0);
+    const appointmentValue = $("profileAppointments");
+    if (appointmentValue) appointmentValue.textContent = appointmentRows.length ? String(appointments) : "—";
+    const appointmentMeta = appointmentValue?.closest(".card")?.querySelector(".meta");
+    if (appointmentMeta) appointmentMeta.textContent = !email ? "E-mail Brokerlink manquant sur la fiche" : appointmentRows.length ? "Rendez-vous Brokerlink depuis le 10 nov. 2026" : "En attente des données Brokerlink depuis le 10 nov.";
+    const attendedValue = $("profileAttended");
+    const attended = appointmentRows.reduce((sum,row) => {
+      const value = row?.rdv_honores ?? row?.rendez_vous_honores ?? row?.appointments_attended ?? row?.attended_appointments;
+      return sum + (value === undefined || value === null || value === "" ? 0 : Math.max(0,Number(value) || 0));
+    },0);
+    const hasAttended = appointmentRows.some(row => row?.rdv_honores !== undefined || row?.rendez_vous_honores !== undefined || row?.appointments_attended !== undefined || row?.attended_appointments !== undefined);
+    if (attendedValue) attendedValue.textContent = hasAttended ? String(attended) : "—";
+    const attendedMeta = attendedValue?.closest(".card")?.querySelector(".meta");
+    if (attendedMeta) attendedMeta.textContent = hasAttended ? "Rendez-vous honorés transmis par Brokerlink" : "Non fourni par l’API Brokerlink actuellement";
+    let store = {};
+    try { store = window.crmPerformanceContext?.().attendanceStore?.(employee.id) || {}; } catch {}
+    if (!Array.isArray(store.lates)) { try { store = JSON.parse(localStorage.getItem("cc_attendance_" + employee.id) || "{}"); } catch { store = {}; } }
+    const lates = (store.lates || []).filter(item => {
+      const date = String(item?.date || "").slice(0,10);
+      return date >= launchDate && date <= today && Number(item?.minutes ?? item?.duration) > 0;
+    });
+    const byMonth = new Map();
+    for (const item of lates) {
+      const key = monthKey(item.date);
+      if (!byMonth.has(key)) byMonth.set(key,{green:0,orange:0,red:0,total:0});
+      const bucket = byMonth.get(key), minutes = Number(item.minutes ?? item.duration) || 0;
+      bucket[minutes <= 10 ? "green" : minutes <= 30 ? "orange" : "red"]++;
+      bucket.total++;
+    }
+    const launchMonth = monthKey(launchDate), currentMonth = monthKey(today);
+    for (let cursor=launchMonth; cursor<=currentMonth;) {
+      if (!byMonth.has(cursor)) byMonth.set(cursor,{green:0,orange:0,red:0,total:0});
+      const [year,month] = cursor.split("-").map(Number);
+      cursor = month === 12 ? (year+1)+"-01" : year+"-"+String(month+1).padStart(2,"0");
+    }
+    const current = byMonth.get(currentMonth) || {green:0,orange:0,red:0,total:0};
+    const summary = $("profileAttendanceSummary");
+    if (summary) summary.textContent = current.total + " retard(s)";
+    const summaryMeta = summary?.closest(".card")?.querySelector(".meta");
+    if (summaryMeta) summaryMeta.textContent = "Ce mois-ci · suivi depuis le 10 nov. 2026";
+    const rowsHtml = [...byMonth.entries()].sort(([a],[b])=>b.localeCompare(a)).map(([month,bucket])=>'<div class="cc-profile-month-row"><b>'+escapeHtml(monthName(month))+'</b><span class="green">'+bucket.green+' vert(s)</span><span class="orange">'+bucket.orange+' orange</span><span class="red">'+bucket.red+' rouge(s)</span><strong>'+bucket.total+'</strong></div>').join("");
+    const lateCard = $("profileContent")?.querySelector(".attendance-late-card");
+    if (lateCard) {
+      const list = lateCard.querySelector(".late-counters");
+      if (list) {
+        const values = [current.green,current.orange,current.red];
+        [...list.querySelectorAll(".late-counter b")].forEach((node,index)=>{ if (values[index] !== undefined) node.textContent=String(values[index]); });
+      }
+      let history = lateCard.querySelector(".cc-profile-monthly-lates");
+      if (!history) { history=document.createElement("section"); history.className="cc-profile-monthly-lates"; lateCard.appendChild(history); }
+      const signature = [...byMonth.entries()].map(([month,bucket])=>month+":"+bucket.green+","+bucket.orange+","+bucket.red).join("|");
+      if (history.dataset.signature !== signature) {
+        history.dataset.signature=signature;
+        history.innerHTML='<h4>Retards par mois</h4><p>Calcul à partir du 10 novembre 2026, date de démarrage du CRM.</p><div class="cc-profile-month-head"><span>Mois</span><span>Retards</span><span></span><span></span><span>Total</span></div>'+rowsHtml;
+      }
+      if (!$("ccProfileMonthlyLateStyle")) {
+        const style=document.createElement("style");style.id="ccProfileMonthlyLateStyle";
+        style.textContent=".cc-profile-monthly-lates{margin-top:16px;padding-top:14px;border-top:1px solid #493b3e}.cc-profile-monthly-lates h4{margin:0 0 4px;color:#f1d4d8;font-size:13px}.cc-profile-monthly-lates>p{margin:0 0 10px;color:#b7aaac;font-size:10px}.cc-profile-month-head,.cc-profile-month-row{display:grid;grid-template-columns:minmax(90px,1fr) repeat(3,minmax(80px,.8fr)) 42px;gap:8px;align-items:center}.cc-profile-month-head{padding:6px 9px;color:#b7aaac;font-size:9px;text-transform:uppercase}.cc-profile-month-row{padding:9px;border-top:1px solid #403638;background:#241e20;color:#eadfe0;font-size:10px}.cc-profile-month-row>b{text-transform:capitalize}.cc-profile-month-row .green{color:#70d7a8}.cc-profile-month-row .orange{color:#f0b85c}.cc-profile-month-row .red{color:#ef8190}.cc-profile-month-row>strong{text-align:right;color:#f6e9e9}@media(max-width:600px){.cc-profile-month-head,.cc-profile-month-row{grid-template-columns:minmax(72px,1fr) repeat(3,minmax(55px,.8fr)) 30px;gap:4px;padding-left:6px;padding-right:6px;font-size:8px}}";
+        document.head.appendChild(style);
+      }
+    }
+  }
   function trackEmployeeProfile() {
     const wrap=(name)=>{
       const original=window[name];if(typeof original!=="function"||original.__ccTracked)return;
@@ -883,7 +971,7 @@
       tracked.__ccTracked=true;window[name]=tracked;
     };
     ["openEmployeeProfile","renderProfile","crmOpenEmployeeProfile"].forEach(wrap);
-    const refresh=()=>setTimeout(()=>{renderBrokerlinkEmailCard();renderEmployeeScheduleCard();renderEmployeeSalaryAccessCard();normalizeProfileAttendanceKpis()},0);
+    const refresh=()=>setTimeout(()=>{renderBrokerlinkEmailCard();renderEmployeeScheduleCard();renderEmployeeSalaryAccessCard();normalizeProfileAttendanceKpis();renderProfileMonthlyMetrics()},0);
     const observe=target=>{if(target&&!target.dataset.ccProfileObserver){new MutationObserver(refresh).observe(target,{childList:true,subtree:true,characterData:true});target.dataset.ccProfileObserver="1"}};
     observe($("profileIdentity"));observe($("profileTitle"));observe($("profileContent"));
     refresh();
