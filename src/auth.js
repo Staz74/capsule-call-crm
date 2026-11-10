@@ -7,6 +7,7 @@
   const liveStateVersions = new Map();
   const queues = new Map(), cloudBase = new Map();
   const $ = (id) => document.getElementById(id);
+  function normalizeEmployeeStatuses(input) { return (Array.isArray(input)?input:[]).map(employee=>employee?.status==="Actif"?{...employee,status:"Autonome"}:employee); }
   function taskBoardDate() { return typeof dashboardZurichDate === "function" ? dashboardZurichDate() : new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()); }
   function normalizeTaskList(input, resetOldDone = false) {
     const today = taskBoardDate();
@@ -34,7 +35,7 @@
     // Brokerlink form has updated localStorage. Preserve the latest linked email.
     if (syncKey === "employees" && this === localStorage) {
       try {
-        const nextEmployees = JSON.parse(value);
+        const nextEmployees = normalizeEmployeeStatuses(JSON.parse(value));
         const previousEmployees = JSON.parse(this.getItem("capsule_employees") || "[]");
         if (Array.isArray(nextEmployees) && Array.isArray(previousEmployees)) {
           const previousById = new Map(previousEmployees.map(employee => [String(employee.id), employee]));
@@ -143,10 +144,21 @@
       }
       for (const row of firstState) { remote.set(row.state_key, row.payload); cloudBase.set(row.state_key, row.payload); }
     }
+    if (Array.isArray(remote.get("employees"))) {
+      const oldEmployees=remote.get("employees"), normalizedEmployees=normalizeEmployeeStatuses(oldEmployees);
+      if(JSON.stringify(oldEmployees)!==JSON.stringify(normalizedEmployees)) {
+        if(["admin","rh","chef_plateau"].includes(currentProfile?.role)) {
+          const {data:normalizedData,error:normalizedError}=await client.rpc("crm_merge_state",{p_state_key:"employees",p_base:oldEmployees,p_next:normalizedEmployees});
+          if(normalizedError)throw normalizedError;
+          remote.set("employees",Array.isArray(normalizedData)?normalizedData:normalizedEmployees);
+        } else remote.set("employees",normalizedEmployees);
+        cloudBase.set("employees",remote.get("employees"));
+      }
+    }
     if (["admin","rh","chef_plateau"].includes(currentProfile?.role) && Array.isArray(local.employees) && Array.isArray(remote.get("employees"))) {
-      const remoteEmployees = remote.get("employees"), remoteIds = new Set(remoteEmployees.map(employee => String(employee?.id)));
+      const remoteEmployees = remote.get("employees"), localEmployees=normalizeEmployeeStatuses(local.employees), remoteIds = new Set(remoteEmployees.map(employee => String(employee?.id)));
       const archived = new Set((Array.isArray(remote.get("archivedEmployees")) ? remote.get("archivedEmployees") : []).map(employee => String(employee?.id ?? employee)));
-      const localOnly = local.employees.filter(employee => employee?.id != null && !remoteIds.has(String(employee.id)) && !archived.has(String(employee.id)) && !employee.archivedAt);
+      const localOnly = localEmployees.filter(employee => employee?.id != null && !remoteIds.has(String(employee.id)) && !archived.has(String(employee.id)) && !employee.archivedAt);
       if (localOnly.length) {
         const mergedEmployees = [...remoteEmployees, ...localOnly];
         const { data: mergedData, error: mergeError } = await client.rpc("crm_merge_state", { p_state_key:"employees", p_base:remoteEmployees, p_next:mergedEmployees });
@@ -1219,7 +1231,8 @@
     }
     normalizeCreateForm();
     const profileStatus=$("profileContent")?.querySelector("#pfStatus");
-    if(profileStatus && !["Actif","En pause"].includes(profileStatus.value)){
+    if(profileStatus){
+      if(profileStatus.value==="Actif" && [...profileStatus.options].some(option=>option.value==="Autonome"))profileStatus.value="Autonome";
       [...profileStatus.options].filter(option=>["Actif","En pause"].includes(option.value)).forEach(option=>option.remove());
     }
   }
