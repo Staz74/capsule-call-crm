@@ -816,6 +816,30 @@
       });
       board.querySelectorAll(".task-progress-btn").forEach(button=>button.remove());
     };
+    if(typeof window.syncControlTaskAfterRecord==="function"&&!window.ccDailyTaskCompletionWrapped){
+      const recordTask=window.syncControlTaskAfterRecord;
+      window.syncControlTaskAfterRecord=function(taskId,kind,record){
+        const result=recordTask.apply(this,arguments);
+        window.setTimeout(()=>{
+          try{
+            const raw=localStorage.getItem("capsule_tasks"),tasks=raw?JSON.parse(raw):[];
+            const task=tasks.find(item=>String(item.id)===String(taskId));
+            if(!task||["Terminée","Terminé","Effectué"].includes(String(task.status||"")))return;
+            const today=taskBoardDate(),now=new Date().toISOString();
+            task.status="Terminée";task.completedAt=now;task.completedOn=today;task.completedBy=String(record?.evaluator||record?.coach||record?.owner||"Équipe");
+            const taskRaw=localStorage.getItem("capsule_taskHistory"),history=taskRaw?JSON.parse(taskRaw):[];
+            if(!history.some(item=>String(item.taskId)===String(taskId)&&String(item.completedOn||"").slice(0,10)===today)){
+              history.unshift({id:Date.now(),taskId:task.id,title:task.title,owner:task.completedBy,source:task.source|| (kind==="quality"?"Qualité":"Coaching"),completedAt:now,completedOn:today,details:record||{},summary:String(record?.notes||record?.result||record?.objective||"Enregistrement terminé.")});
+              localStorage.setItem("capsule_taskHistory",JSON.stringify(history));
+            }
+            localStorage.setItem("capsule_tasks",JSON.stringify(tasks));
+            window.renderTasks?.();window.renderTaskHistory?.();window.renderDash?.();
+          }catch(error){console.warn("CRM daily task completion:",error)}
+        },0);
+        return result;
+      };
+      window.ccDailyTaskCompletionWrapped=true;
+    }
     if(typeof window.renderTasks==="function"&&!window.ccTaskRenderWrapped){
       const render=window.renderTasks;
       window.renderTasks=function(...args){const result=render.apply(this,args);window.setTimeout(paint,0);return result};
