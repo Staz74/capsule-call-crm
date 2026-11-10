@@ -396,7 +396,7 @@
     const state = status === "red" ? "Rouge" : status === "orange" ? "Orange" : status === "green" ? "Vert" : status === "pending" ? "En cours" : "En attente";
     const score = Number.isFinite(points) ? (label === "Performance" && points < 0 ? "−" + Math.abs(points) : (label === "Performance" ? "+" : "") + points) + " pt" + (Math.abs(points) === 1 ? "" : "s") : state;
     const hint = detail ? ' title="' + escapeHtml(detail) + '"' : "";
-    return '<div class="cc-dash-signal ' + status + '"' + hint + '><span class="cc-dash-dot" aria-hidden="true"></span><small>' + label.toUpperCase() + '</small><b>' + escapeHtml(score) + '</b></div>';
+    return '<div class="cc-dash-signal ' + status + '"' + hint + '><span class="cc-dash-dot" aria-hidden="true"></span><small>' + label + '</small><b>' + escapeHtml(score) + '</b></div>';
   }
   function renderEmployeeTableSignals(records) {
     const table = $("employeesTable");
@@ -965,6 +965,36 @@
       }
     }
   }
+  function setupEmployeeUiSimplification() {
+    if (!$("ccEmployeeUiSimplificationStyle")) {
+      const style=document.createElement("style");style.id="ccEmployeeUiSimplificationStyle";
+      style.textContent="#screen-employees th:nth-child(2),#screen-employees td:nth-child(2),#screen-employees th:nth-child(5),#screen-employees td:nth-child(5),#screen-employees th:nth-child(6),#screen-employees td:nth-child(6){display:none!important}#screen-employees #employeesTable td:first-child{min-width:260px}.cc-employee-signal-set{display:flex!important;width:max-content;max-width:100%;flex-wrap:wrap;align-items:center;gap:9px!important;margin:3px 0 0 39px!important}.cc-employee-signal{padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;gap:4px!important}.cc-employee-signal small{font-size:9px!important;font-weight:500!important;letter-spacing:0!important;text-transform:none!important;color:#cbbfc0!important}.cc-employee-signal .cc-dash-dot{width:7px!important;height:7px!important}";
+      document.head.appendChild(style);
+    }
+    ["screen-employees","screen-onboarding"].forEach(id=>document.querySelectorAll("#"+id+' [data-modal="employee"]').forEach(button=>button.textContent="＋ Ajouter un collaborateur"));
+    const statusFilter=$("statusFilter");
+    if(statusFilter) [...statusFilter.options].filter(option=>["Actif","En pause"].includes(option.value)).forEach(option=>option.remove());
+    const normalizeCreateForm=()=>{
+      const modal=$("modalbg"), title=$("modalTitle")?.textContent?.trim();
+      if(!modal?.classList.contains("open") || title!=="Nouveau collaborateur")return;
+      const select=$("modalBody")?.querySelector('select[name="status"]');
+      if(!select)return;
+      [...select.options].filter(option=>["Actif","En pause"].includes(option.value)).forEach(option=>option.remove());
+      select.value="En onboarding";
+      const field=select.closest(".field");
+      if(field)field.hidden=true;
+    };
+    if(!window.ccEmployeeCreateModalWrapped && typeof window.openModal==="function"){
+      const original=window.openModal;
+      window.openModal=function(type,...args){const result=original.call(this,type,...args);if(type==="employee")normalizeCreateForm();return result};
+      window.ccEmployeeCreateModalWrapped=true;
+    }
+    normalizeCreateForm();
+    const profileStatus=$("profileContent")?.querySelector("#pfStatus");
+    if(profileStatus && !["Actif","En pause"].includes(profileStatus.value)){
+      [...profileStatus.options].filter(option=>["Actif","En pause"].includes(option.value)).forEach(option=>option.remove());
+    }
+  }
   function trackEmployeeProfile() {
     const wrap=(name)=>{
       const original=window[name];if(typeof original!=="function"||original.__ccTracked)return;
@@ -972,7 +1002,7 @@
       tracked.__ccTracked=true;window[name]=tracked;
     };
     ["openEmployeeProfile","renderProfile","crmOpenEmployeeProfile"].forEach(wrap);
-    const refresh=()=>setTimeout(()=>{renderBrokerlinkEmailCard();renderEmployeeScheduleCard();renderEmployeeSalaryAccessCard();normalizeProfileAttendanceKpis();renderProfileMonthlyMetrics()},0);
+    const refresh=()=>setTimeout(()=>{renderBrokerlinkEmailCard();renderEmployeeScheduleCard();renderEmployeeSalaryAccessCard();normalizeProfileAttendanceKpis();renderProfileMonthlyMetrics();setupEmployeeUiSimplification()},0);
     const observe=target=>{if(target&&!target.dataset.ccProfileObserver){new MutationObserver(refresh).observe(target,{childList:true,subtree:true,characterData:true});target.dataset.ccProfileObserver="1"}};
     observe($("profileIdentity"));observe($("profileTitle"));observe($("profileContent"));
     refresh();
@@ -1233,7 +1263,7 @@
   }
 
   document.addEventListener("DOMContentLoaded", async () => {
-    setupLoginModePicker(); trackEmployeeProfile(); setupOnboardingStatusControls();
+    setupLoginModePicker(); trackEmployeeProfile(); setupOnboardingStatusControls(); setupEmployeeUiSimplification();
     $("loginForm")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = $("loginForm"), button = form.querySelector('button[type="submit"]');
