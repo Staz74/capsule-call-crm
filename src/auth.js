@@ -527,6 +527,7 @@
         dashboardOperationalTimer = window.setTimeout(() => {
           renderDashboardOperationalData();
           renderDashboardTodayTasks();
+          renderProfileMonthlyMetrics();
         }, 80);
       });
       window.addEventListener("storage", event => {
