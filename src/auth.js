@@ -6,12 +6,29 @@
   let liveEmployeeStateVersion = null, liveCollaboratorRefreshPending = false, liveCollaboratorRefreshTimer = null, liveCollaboratorWatcherStarted = false, liveCollaboratorLogWarned = false;
   const queues = new Map(), cloudBase = new Map();
   const $ = (id) => document.getElementById(id);
+  function taskBoardDate() { return typeof dashboardZurichDate === "function" ? dashboardZurichDate() : new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()); }
+  function normalizeTaskList(input, resetOldDone = false) {
+    const today = taskBoardDate();
+    return (Array.isArray(input) ? input : []).filter(task => {
+      const title = String(task?.title || task?.name || "").trim();
+      const action = String(task?.action || "");
+      const lower = title.toLocaleLowerCase("fr");
+      if (!title || ["ouvrir le formulaire","enregistrer le compte rendu"].includes(lower)) return false;
+      if (/days$/i.test(action) && String(task?.source || "").toLocaleLowerCase("fr").includes("contrôle")) return false;
+      if (resetOldDone && ["Terminée","Terminé","Effectué","Done"].includes(String(task?.status || ""))) {
+        const completed = String(task.completedOn || task.completed_on || task.completedAt || task.completed_at || "").slice(0,10);
+        if (!completed || completed < today) return false;
+      }
+      return true;
+    }).map(task => ["En cours","In progress"].includes(String(task.status || "")) ? { ...task, status:"À faire" } : task);
+  }
   const dataKeys = ["employees","candidates","archivedEmployees","archivedCandidates","appPermissions","tasks","taskHistory","qualityHistory","coachingHistory","synthesisActions","onboardingHistory","attendanceHistory","reports","meetings","docs","kpiRows","controlRules"];
   const storedOriginal = Storage.prototype.setItem;
   const removedOriginal = Storage.prototype.removeItem;
   const scopedKey = (key) => key.startsWith("capsule_") ? key.slice(8) : (key.startsWith("cc_onboarding_steps_") || key.startsWith("cc_attendance_")) ? "local:" + key : null;
   Storage.prototype.setItem = function(key, value) {
     const syncKey = this === localStorage && scopedKey(String(key));
+    if (syncKey === "tasks" && this === localStorage) { try { value = JSON.stringify(normalizeTaskList(JSON.parse(value), true)); } catch {} }
     // Profile cards can save an older in-memory employee array after the separate
     // Brokerlink form has updated localStorage. Preserve the latest linked email.
     if (syncKey === "employees" && this === localStorage) {
@@ -124,6 +141,29 @@
         if (seedError) throw seedError;
       }
       for (const row of firstState) { remote.set(row.state_key, row.payload); cloudBase.set(row.state_key, row.payload); }
+    }
+    if (["admin","rh","chef_plateau"].includes(currentProfile?.role) && Array.isArray(local.employees) && Array.isArray(remote.get("employees"))) {
+      const remoteEmployees = remote.get("employees"), remoteIds = new Set(remoteEmployees.map(employee => String(employee?.id)));
+      const archived = new Set((Array.isArray(remote.get("archivedEmployees")) ? remote.get("archivedEmployees") : []).map(employee => String(employee?.id ?? employee)));
+      const localOnly = local.employees.filter(employee => employee?.id != null && !remoteIds.has(String(employee.id)) && !archived.has(String(employee.id)) && !employee.archivedAt);
+      if (localOnly.length) {
+        const mergedEmployees = [...remoteEmployees, ...localOnly];
+        const { data: mergedData, error: mergeError } = await client.rpc("crm_merge_state", { p_state_key:"employees", p_base:remoteEmployees, p_next:mergedEmployees });
+        if (mergeError) throw mergeError;
+        const result = Array.isArray(mergedData) ? mergedData : mergedEmployees;
+        remote.set("employees", result); cloudBase.set("employees", result);
+      }
+    }
+    if (Array.isArray(remote.get("tasks"))) {
+      const remoteTasks = remote.get("tasks"), cleanTasks = normalizeTaskList(remoteTasks, true);
+      if (JSON.stringify(remoteTasks) !== JSON.stringify(cleanTasks) && ["admin","rh","chef_plateau"].includes(currentProfile?.role)) {
+        const { data: cleanData, error: cleanError } = await client.rpc("crm_merge_state", { p_state_key:"tasks", p_base:remoteTasks, p_next:cleanTasks });
+        if (cleanError) throw cleanError;
+        const result = Array.isArray(cleanData) ? cleanData : cleanTasks;
+        remote.set("tasks", result); cloudBase.set("tasks", result);
+      } else if (JSON.stringify(remoteTasks) !== JSON.stringify(cleanTasks)) {
+        remote.set("tasks", cleanTasks); cloudBase.set("tasks", cleanTasks);
+      }
     }
     const crmEmployees = Array.isArray(remote.get("employees")) ? remote.get("employees") : [];
     const linkedBrokerlinkEmails = new Set(crmEmployees.map((employee) => String(employee.brokerlinkEmail || employee.brokerlink_email || "").trim().toLowerCase()).filter(Boolean));
@@ -455,6 +495,7 @@
       records.push({employee,attend,performance});
     }
     renderEmployeeTableSignals(records);
+    renderDailyListenMetric();
     const severity = status => status === "red" ? 2 : status === "orange" ? 1 : 0;
     const flagged = records.filter(row => severity(row.attend.state) > 0 || severity(row.performance.state) > 0)
       .sort((a,b) => Math.max(severity(b.attend.state),severity(b.performance.state)) - Math.max(severity(a.attend.state),severity(a.performance.state)) || (Number(b.attend.points)||0) - (Number(a.attend.points)||0) || (Number(b.performance.points)||0) - (Number(a.performance.points)||0));
@@ -498,7 +539,7 @@
     const styleId = "ccDashboardOperationalStyle";
     if (!$(styleId)) {
       const style = document.createElement("style"); style.id = styleId;
-      style.textContent = "#ccDashboardFocus{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,.9fr);gap:14px;align-items:start;margin:0 0 16px}#ccDashboardFocus .cc-dashboard-tasks-panel{margin:0!important;min-width:0}#ccDashboardFocus .dashboard-task{gap:12px;padding:12px 16px}#ccDashboardFocus .cc-dash-overdue{color:#f08e9a!important;font-weight:800}#ccDashboardFocus .cc-dashboard-watch{min-width:0}#ccDashboardFocus .cc-dash-watch-list{padding:2px 14px 12px}#ccDashboardFocus .cc-dash-watch-row{width:100%;border:0;border-top:1px solid #403637;background:transparent;color:#f3ecea;text-align:left;display:grid;grid-template-columns:minmax(0,1fr) 78px 78px;gap:8px;align-items:center;padding:11px 2px;cursor:pointer}#ccDashboardFocus .cc-dash-watch-row:hover{background:#ffffff06}#ccDashboardFocus .cc-dash-watch-person{display:flex;gap:9px;align-items:center;min-width:0}#ccDashboardFocus .cc-dash-initial{width:30px;height:30px;flex:0 0 30px;border-radius:10px;display:grid;place-items:center;background:#3b2c30;color:#f4d7db;font-size:10px;font-weight:800}#ccDashboardFocus .cc-dash-watch-person b{display:block;font-size:10px;color:#f2e8e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#ccDashboardFocus .cc-dash-watch-person small{display:block;margin-top:3px;color:#b9aaac;font-size:8px}#ccDashboardFocus .cc-dash-signal{display:grid;justify-items:center;gap:3px;min-width:0}#ccDashboardFocus .cc-dash-dot{width:13px;height:13px;border-radius:50%;display:block;background:#777;box-shadow:0 0 0 4px #7772,0 0 12px #7778}#ccDashboardFocus .cc-dash-signal.green .cc-dash-dot,#ccDashboardFocus .cc-dash-green-summary .cc-dash-dot{background:#70d6a0;box-shadow:0 0 0 4px #70d6a022,0 0 13px #70d6a099}#ccDashboardFocus .cc-dash-signal.orange .cc-dash-dot{background:#f2b85e;box-shadow:0 0 0 4px #f2b85e22,0 0 13px #f2b85e99}#ccDashboardFocus .cc-dash-signal.red .cc-dash-dot{background:#ff7180;box-shadow:0 0 0 4px #ff718022,0 0 13px #ff718099}#ccDashboardFocus .cc-dash-signal small{font-size:7px;color:#cdbfc1;font-weight:800;letter-spacing:.08em}#ccDashboardFocus .cc-dash-signal b{font-size:8px;color:#e9dadd;font-weight:750}#ccDashboardFocus .cc-dash-watch-reason{grid-column:1/-1;margin:0 0 0 39px;color:#bbaeb0;font-size:8px;line-height:1.5}#ccDashboardFocus .cc-dash-empty{padding:14px 4px;color:#cbbbbb;font-size:10px;line-height:1.6}#ccDashboardFocus .cc-dash-pending-note{border-top:1px solid #403637;padding:9px 2px;color:#bbaeb0;font-size:8px}#ccDashboardFocus .cc-dash-green-summary{border-top:1px solid #403637;padding:10px 2px 0;display:flex;gap:9px;align-items:center;color:#c9d9cf;font-size:9px}#ccDashboardFocus .cc-dash-green-summary .cc-dash-dot{width:9px;height:9px}@media(max-width:1060px){#ccDashboardFocus{grid-template-columns:1fr}#ccDashboardFocus .cc-dashboard-watch{min-width:0}}@media(max-width:700px){#ccDashboardFocus .cc-dash-watch-row{grid-template-columns:minmax(0,1fr) 65px 65px;gap:5px}#ccDashboardFocus .cc-dash-watch-person b{font-size:9px}#ccDashboardFocus .cc-dash-watch-reason{margin-left:0}#ccDashboardFocus .cc-dash-signal small{font-size:6px}}";
+      style.textContent = "#screen-dashboard .dashboard-main{grid-template-columns:minmax(0,1fr)!important}#screen-dashboard .dashboard-main>.panel:nth-child(2){display:none!important}#ccDashboardFocus{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,.9fr);gap:14px;align-items:start;margin:0 0 16px}#ccDashboardFocus .cc-dashboard-tasks-panel{margin:0!important;min-width:0}#ccDashboardFocus .dashboard-task{gap:12px;padding:12px 16px}#ccDashboardFocus .cc-dash-overdue{color:#f08e9a!important;font-weight:800}#ccDashboardFocus .cc-dashboard-watch{min-width:0}#ccDashboardFocus .cc-dash-watch-list{padding:2px 14px 12px}#ccDashboardFocus .cc-dash-watch-row{width:100%;border:0;border-top:1px solid #403637;background:transparent;color:#f3ecea;text-align:left;display:grid;grid-template-columns:minmax(0,1fr) 78px 78px;gap:8px;align-items:center;padding:11px 2px;cursor:pointer}#ccDashboardFocus .cc-dash-watch-row:hover{background:#ffffff06}#ccDashboardFocus .cc-dash-watch-person{display:flex;gap:9px;align-items:center;min-width:0}#ccDashboardFocus .cc-dash-initial{width:30px;height:30px;flex:0 0 30px;border-radius:10px;display:grid;place-items:center;background:#3b2c30;color:#f4d7db;font-size:10px;font-weight:800}#ccDashboardFocus .cc-dash-watch-person b{display:block;font-size:10px;color:#f2e8e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#ccDashboardFocus .cc-dash-watch-person small{display:block;margin-top:3px;color:#b9aaac;font-size:8px}#ccDashboardFocus .cc-dash-signal{display:grid;justify-items:center;gap:3px;min-width:0}#ccDashboardFocus .cc-dash-dot{width:13px;height:13px;border-radius:50%;display:block;background:#777;box-shadow:0 0 0 4px #7772,0 0 12px #7778}#ccDashboardFocus .cc-dash-signal.green .cc-dash-dot,#ccDashboardFocus .cc-dash-green-summary .cc-dash-dot{background:#70d6a0;box-shadow:0 0 0 4px #70d6a022,0 0 13px #70d6a099}#ccDashboardFocus .cc-dash-signal.orange .cc-dash-dot{background:#f2b85e;box-shadow:0 0 0 4px #f2b85e22,0 0 13px #f2b85e99}#ccDashboardFocus .cc-dash-signal.red .cc-dash-dot{background:#ff7180;box-shadow:0 0 0 4px #ff718022,0 0 13px #ff718099}#ccDashboardFocus .cc-dash-signal small{font-size:7px;color:#cdbfc1;font-weight:800;letter-spacing:.08em}#ccDashboardFocus .cc-dash-signal b{font-size:8px;color:#e9dadd;font-weight:750}#ccDashboardFocus .cc-dash-watch-reason{grid-column:1/-1;margin:0 0 0 39px;color:#bbaeb0;font-size:8px;line-height:1.5}#ccDashboardFocus .cc-dash-empty{padding:14px 4px;color:#cbbbbb;font-size:10px;line-height:1.6}#ccDashboardFocus .cc-dash-pending-note{border-top:1px solid #403637;padding:9px 2px;color:#bbaeb0;font-size:8px}#ccDashboardFocus .cc-dash-green-summary{border-top:1px solid #403637;padding:10px 2px 0;display:flex;gap:9px;align-items:center;color:#c9d9cf;font-size:9px}#ccDashboardFocus .cc-dash-green-summary .cc-dash-dot{width:9px;height:9px}@media(max-width:1060px){#ccDashboardFocus{grid-template-columns:1fr}#ccDashboardFocus .cc-dashboard-watch{min-width:0}}@media(max-width:700px){#ccDashboardFocus .cc-dash-watch-row{grid-template-columns:minmax(0,1fr) 65px 65px;gap:5px}#ccDashboardFocus .cc-dash-watch-person b{font-size:9px}#ccDashboardFocus .cc-dash-watch-reason{margin-left:0}#ccDashboardFocus .cc-dash-signal small{font-size:6px}}";
       document.head.appendChild(style);
     }
     if (!window.crmDashboardRenderWrapped && typeof window.renderDash === "function") {
@@ -507,6 +548,7 @@
         const result = originalRender.apply(this, args);
         window.setTimeout(renderDashboardOperationalData, 0);
         window.setTimeout(renderDashboardTodayTasks, 0);
+        window.setTimeout(renderDailyListenMetric, 0);
         return result;
       };
       window.crmDashboardRenderWrapped = true;
@@ -733,6 +775,86 @@
     liveCollaboratorRefreshTimer=window.setTimeout(applyRemoteCollaboratorRefresh,600);
   }
 
+  function crmLocalData(key, fallback) {
+    try { const value = JSON.parse(localStorage.getItem("capsule_" + key)); return value == null ? fallback : value; } catch { return fallback; }
+  }
+  function renderDailyListenMetric() {
+    const metric=$("listensMetric"), meta=$("listensMeta"); if(!metric||!meta)return;
+    const state=typeof window.crmGetLocalState==="function"?window.crmGetLocalState():{};
+    const employees=(state.employees||crmLocalData("employees",[])).filter(employee=>!employee.archivedAt && ["Autonome","Débutant","Actif"].includes(employee.status));
+    const rules=state.controlRules||crmLocalData("controlRules",{}), history=state.qualityHistory||crmLocalData("qualityHistory",[]);
+    const today=taskBoardDate(),weekday=new Date(today+"T12:00:00Z").getUTCDay();
+    let target=0; const names=new Set();
+    for(const employee of employees){
+      const stage=employee.status==="Débutant"?"beginner":"autonomy",rule=rules?.quality?.[stage];
+      const weekly=Math.max(0,Number(rule?.listens)||0); if(!weekly)continue;
+      const days=Array.isArray(rule?.listenDays)&&rule.listenDays.length?rule.listenDays.map(Number):[1,2,3,4,5];
+      if(!days.includes(weekday))continue;
+      target+=Math.max(1,Math.ceil(weekly/days.length));
+      names.add(String(employee.name||"").trim().toLocaleLowerCase("fr"));
+    }
+    const done=(Array.isArray(history)?history:[]).filter(item=>String(item.date||"").slice(0,10)===today&&names.has(String(item.employee||"").trim().toLocaleLowerCase("fr"))).length;
+    metric.textContent=done+" / "+target;
+    meta.textContent=target?Math.max(0,target-done)+" écoute(s) à réaliser aujourd’hui":"Aucune écoute prévue aujourd’hui";
+  }
+  function setupTaskBoardEnhancements() {
+    const styleId="ccTaskBoardEnhancements";
+    if(!$(styleId)){const style=document.createElement("style");style.id=styleId;style.textContent="#taskBoard.board{grid-template-columns:repeat(2,minmax(0,1fr))!important}#taskBoard .task-progress-btn{display:none!important}#taskBoard .lane.cc-hidden-progress{display:none!important}@media(max-width:760px){#taskBoard.board{grid-template-columns:1fr!important}}";document.head.appendChild(style)}
+    const paint=()=>{
+      const board=$("taskBoard");if(!board)return;
+      board.querySelectorAll(".lane").forEach(lane=>{
+        const head=lane.querySelector(".lanehead");if(!head)return;
+        const label=String(head.firstChild?.textContent||head.textContent||"").trim();
+        if(/^En cours/i.test(label)){lane.classList.add("cc-hidden-progress");return}
+        lane.classList.remove("cc-hidden-progress");
+        if(/^Terminées/i.test(label))head.firstChild.textContent="Terminé";
+        lane.querySelectorAll(".task").forEach(card=>{
+          const title=String(card.querySelector(".task-topline b")?.textContent||"").trim().toLocaleLowerCase("fr");
+          if(!title||["ouvrir le formulaire","enregistrer le compte rendu"].includes(title))card.remove();
+        });
+        const count=head.querySelector("span");if(count)count.textContent=String(lane.querySelectorAll(".task").length);
+      });
+      board.querySelectorAll(".task-progress-btn").forEach(button=>button.remove());
+    };
+    if(typeof window.renderTasks==="function"&&!window.ccTaskRenderWrapped){
+      const render=window.renderTasks;
+      window.renderTasks=function(...args){const result=render.apply(this,args);window.setTimeout(paint,0);return result};
+      window.ccTaskRenderWrapped=true;
+    }
+    const board=$("taskBoard");
+    if(board&&!window.ccTaskBoardObserver){window.ccTaskBoardObserver=new MutationObserver(paint);window.ccTaskBoardObserver.observe(board,{childList:true,subtree:true})}
+    paint();
+  }
+  function setupDailyTaskReset() {
+    if(window.ccDailyTaskResetStarted)return;
+    window.ccDailyTaskResetStarted=true;
+    let seenDate=taskBoardDate();
+    window.setInterval(()=>{
+      const nowDate=taskBoardDate();if(nowDate===seenDate)return;
+      seenDate=nowDate;
+      const old=crmLocalData("tasks",[]),next=normalizeTaskList(old,true);
+      if(JSON.stringify(old)!==JSON.stringify(next)){
+        localStorage.setItem("capsule_tasks",JSON.stringify(next));
+        window.setTimeout(async()=>{await Promise.allSettled([...queues.values()]);location.reload()},500);
+      } else {
+        window.renderTasks?.();window.renderDash?.();window.renderTaskHistory?.();
+      }
+    },30000);
+  }
+  function setupEmployeeStatusColors() {
+    const styleId="ccEmployeeStatusColors";
+    if(!$(styleId)){const style=document.createElement("style");style.id=styleId;style.textContent="#employeesTable tr.cc-employee-autonome{background:linear-gradient(90deg,rgba(74,166,120,.14),rgba(74,166,120,.035) 75%,transparent)}#employeesTable tr.cc-employee-autonome>td{background-color:rgba(74,166,120,.045)}#employeesTable tr.cc-employee-debutant{background:linear-gradient(90deg,rgba(228,157,76,.16),rgba(228,157,76,.04) 75%,transparent)}#employeesTable tr.cc-employee-debutant>td{background-color:rgba(228,157,76,.05)}#employeesTable tr.cc-employee-autonome:hover{background-color:rgba(74,166,120,.1)}#employeesTable tr.cc-employee-debutant:hover{background-color:rgba(228,157,76,.1)}#employeesTable .cc-employee-status-autonome{background:#214b3c!important;color:#a8efc6!important;border-color:#4ba879!important;font-size:11px!important;font-weight:800!important}#employeesTable .cc-employee-status-debutant{background:#513b25!important;color:#ffd28c!important;border-color:#c98b42!important;font-size:11px!important;font-weight:800!important}";document.head.appendChild(style)}
+    const table=$("employeesTable");if(!table)return;
+    const paint=()=>table.querySelectorAll("tr").forEach(row=>{
+      row.classList.remove("cc-employee-autonome","cc-employee-debutant");
+      const statusCell=row.cells?.[2],status=String(statusCell?.textContent||"").trim();
+      const badge=statusCell?.querySelector(".pill");badge?.classList.remove("cc-employee-status-autonome","cc-employee-status-debutant");
+      if(status==="Autonome"){row.classList.add("cc-employee-autonome");badge?.classList.add("cc-employee-status-autonome")}
+      if(status==="Débutant"){row.classList.add("cc-employee-debutant");badge?.classList.add("cc-employee-status-debutant")}
+    });
+    if(!window.ccEmployeeStatusObserver){window.ccEmployeeStatusObserver=new MutationObserver(paint);window.ccEmployeeStatusObserver.observe(table,{childList:true,subtree:true})}
+    paint();
+  }
   async function setupLiveCollaboratorSync() {
     if (!currentUser || !cloudReady || !window.crmCanPage?.("employees")) return;
     const { data, error } = await client.from("crm_state").select("updated_at,updated_by").eq("state_key","employees").maybeSingle();
@@ -776,6 +898,9 @@
     }
     applyPermissions(profile.role);
     await setupLiveCollaboratorSync();
+    setupTaskBoardEnhancements();
+    setupEmployeeStatusColors();
+    setupDailyTaskReset();
     if (window.crmCanPage?.("dashboard")) ensureDashboardOperationalView();
     if (profile.role === "admin") ensureBrokerlinkPasswordView();
     const badge = $("profileBadge"); if (badge) { badge.textContent = initial(profile.username); badge.title = "@" + profile.username + " · " + profile.role; }
