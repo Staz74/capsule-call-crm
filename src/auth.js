@@ -969,7 +969,7 @@
     const options=profileRdvMonthOptions();
     if(!select){
       select=document.createElement("select");select.id="profileAppointmentsMonth";select.setAttribute("aria-label","Mois des rendez-vous pris");select.style.cssText="margin-top:8px;padding:6px 9px;border:1px solid #594747;border-radius:8px;background:#292323;color:#f3ecea;font:inherit";
-      const place=value.parentElement||card;place.insertAdjacentElement("afterend",select);
+      value.insertAdjacentElement("afterend",select);
     }
     const current=options.map(item=>item.value), saved=sessionStorage.getItem("ccProfileRdvMonth")||currentProfileRdvMonth();
     const selected=current.includes(select.value)?select.value:current.includes(saved)?saved:current[current.length-1];
