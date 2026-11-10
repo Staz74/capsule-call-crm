@@ -238,7 +238,7 @@
     };
     let configured = null;
     try { const saved = JSON.parse(localStorage.getItem("capsule_appPermissions") || "{}")?.moduleAccess?.[role]; if (Array.isArray(saved)) configured = saved; } catch {}
-    const requested = configured || pages[role] || []; const salaryAccess = role === "admin" || requested.includes("salaryAccess"); const allowed = role === "admin" ? [...pages.admin] : role === "caller" ? [...pages.caller] : [...new Set(requested.map((page) => page === "kpi" || page === "assiduity" ? "performance" : page))];
+    const requested = configured || pages[role] || []; const salaryAccess = role === "admin" || requested.includes("salaryAccess"); const allowed = role === "admin" ? [...pages.admin] : role === "caller" ? [...pages.caller] : [...new Set(requested.filter((page) => page !== "salaryAccess").map((page) => page === "kpi" || page === "assiduity" ? "performance" : page))];
     if (salaryAccess && role !== "admin" && !allowed.includes("settings")) allowed.push("settings");
     const uploadControls = document.querySelector(".doc-upload-controls"); if (uploadControls) uploadControls.hidden = !(role === "admin" || role === "rh");
     document.querySelectorAll("#nav [data-page]").forEach((button) => { button.hidden = !allowed.includes(button.dataset.page); });
