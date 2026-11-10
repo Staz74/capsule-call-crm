@@ -238,11 +238,12 @@
     };
     let configured = null;
     try { const saved = JSON.parse(localStorage.getItem("capsule_appPermissions") || "{}")?.moduleAccess?.[role]; if (Array.isArray(saved)) configured = saved; } catch {}
-    const requested = configured || pages[role] || []; const allowed = role === "admin" ? pages.admin : role === "caller" ? pages.caller : [...new Set(requested.map((page) => page === "kpi" || page === "assiduity" ? "performance" : page))];
+    const requested = configured || pages[role] || []; const salaryAccess = role === "admin" || requested.includes("salaryAccess"); const allowed = role === "admin" ? [...pages.admin] : role === "caller" ? [...pages.caller] : [...new Set(requested.map((page) => page === "kpi" || page === "assiduity" ? "performance" : page))];
+    if (salaryAccess && role !== "admin" && !allowed.includes("settings")) allowed.push("settings");
     const uploadControls = document.querySelector(".doc-upload-controls"); if (uploadControls) uploadControls.hidden = !(role === "admin" || role === "rh");
     document.querySelectorAll("#nav [data-page]").forEach((button) => { button.hidden = !allowed.includes(button.dataset.page); });
     document.querySelectorAll("[data-admin-only]").forEach((element) => { element.hidden = role !== "admin"; });
-    window.crmCanPage = (page) => allowed.includes(page);
+    window.crmCanPage = (page) => page === "salaryAccess" ? salaryAccess : allowed.includes(page);
     window.crmFirstAllowedPage = () => allowed[0] || "dashboard";
     const activePage = document.querySelector(".screen.active")?.id.replace("screen-", "");
     if (activePage && !allowed.includes(activePage)) {
@@ -284,17 +285,43 @@
     renderSalaryAccessRegistry();
   }
   const issuedSalaryPasswords = new Map();
+  function salaryAccessRoleAllowed(role=currentProfile?.role) {
+    if(role==="admin")return true;
+    try { const access=JSON.parse(localStorage.getItem("capsule_appPermissions")||"{}")?.moduleAccess?.[role]; return Array.isArray(access)&&access.includes("salaryAccess"); } catch { return false; }
+  }
+  function setupSalaryAccessRolePermissions() {
+    if(typeof window.renderRolePermissionEditor==="function"&&!window.ccSalaryAccessPermissionEditorWrapped){
+      const original=window.renderRolePermissionEditor;
+      window.renderRolePermissionEditor=function(...args){
+        const result=original.apply(this,args),host=$("permissionModuleList");
+        if(host){
+          let label=host.querySelector('[data-cc-salary-access-option]');
+          if(!label){label=document.createElement("label");label.className="permission-module";label.dataset.ccSalaryAccessOption="true";label.innerHTML='<input type="checkbox" data-permission-module value="salaryAccess"><span>Accès Mon Salaire</span>';host.append(label);}
+          let saved={};try{saved=JSON.parse(localStorage.getItem("capsule_appPermissions")||"{}")}catch{}
+          const role=$("permissionRole")?.value||"",modules=saved?.moduleAccess?.[role];
+          const checkbox=label.querySelector("input");if(checkbox)checkbox.checked=Array.isArray(modules)&&modules.includes("salaryAccess");
+        }
+        return result;
+      };
+      window.ccSalaryAccessPermissionEditorWrapped=true;
+    }
+    if(currentProfile?.role==="admin")return;
+    if(salaryAccessRoleAllowed()){
+      const bar=$("settingsTabBar"),button=bar?.querySelector('[data-settings-view="salaryAccess"]');
+      if(button){button.hidden=false;button.removeAttribute("data-admin-only")}
+    }
+  }
   function renderSalaryAccessRegistry() {
-    if (currentProfile?.role !== "admin") return;
+    if (!salaryAccessRoleAllowed()) return;
     const bar = $("settingsTabBar"), screen = $("screen-settings");
     if (!bar || !screen) return;
     let button = bar.querySelector('[data-settings-view="salaryAccess"]');
     if (!button) {
       button = document.createElement("button"); button.type = "button"; button.className = "btn";
       button.dataset.settingsView = "salaryAccess"; button.setAttribute("role", "tab"); button.textContent = "Accès Mon Salaire";
-      button.setAttribute("data-admin-only", ""); bar.append(button);
+      bar.append(button);
     }
-    button.hidden = false;
+    button.hidden = false; button.removeAttribute("data-admin-only");
     let pane = $("settingsSalaryAccessView");
     if (!pane) { pane = document.createElement("div"); pane.id = "settingsSalaryAccessView"; pane.hidden = true; bar.insertAdjacentElement("afterend", pane); }
     if (!$("ccSalaryAccessRegistryStyle")) {
@@ -309,24 +336,44 @@
       const id = String(employee.id), account = accounts.get(id), issued = issuedSalaryPasswords.get(id);
       const status = !account ? "Aucun accès créé" : account.is_active ? "Actif" : "Désactivé";
       const credentials = account
-        ? '<code>@' + escapeHtml(account.username) + '</code><small class="cc-salary-access-status">' + (issued ? "Nouveau mot de passe temporaire — à transmettre au collaborateur." : "Mot de passe actuel masqué — il ne peut pas être récupéré.") + '</small>' + (issued ? '<div class="cc-salary-access-actions" style="margin-top:7px"><code>' + escapeHtml(issued) + '</code><button type="button" class="btn" data-copy-salary-password="' + escapeHtml(id) + '">Copier</button><button type="button" class="btn" data-hide-salary-password="' + escapeHtml(id) + '">Masquer</button></div>' : "")
-        : '<span>—</span>';
+        ? '<code>@' + escapeHtml(account.username) + '</code><small class="cc-salary-access-status">' + (issued ? "Mot de passe temporaire visible dans cette session." : "Mot de passe non récupérable. Génère-en un nouveau pour le copier.") + '</small>' + (issued ? '<div class="cc-salary-access-actions" style="margin-top:7px"><code>' + escapeHtml(issued) + '</code><button type="button" class="btn" data-copy-salary-password="' + escapeHtml(id) + '">Copier identifiant + mot de passe</button><button type="button" class="btn" data-hide-salary-password="' + escapeHtml(id) + '">Masquer</button></div>' : "")
+        : '<span>' + (currentProfile?.role==="admin" ? "—" : "Aucun accès Mon Salaire créé") + '</span>';
       const action = account
-        ? '<button type="button" class="btn" data-reset-salary-access="' + escapeHtml(account.id) + '" data-employee-id="' + escapeHtml(id) + '">' + (account.is_active ? "Nouveau mot de passe" : "Réactiver + définir un mot de passe") + '</button>'
-        : '<button type="button" class="btn primary" data-open-salary-access="' + escapeHtml(id) + '">Créer l’accès</button>';
+        ? '<button type="button" class="btn" data-reset-salary-access="' + escapeHtml(account.id) + '" data-employee-id="' + escapeHtml(id) + '">' + (account.is_active ? "Générer un mot de passe" : "Réactiver + définir un mot de passe") + '</button>'
+        : (currentProfile?.role==="admin" ? '<button type="button" class="btn primary" data-open-salary-access="' + escapeHtml(id) + '">Créer l’accès</button>' : '<span class="cc-salary-access-status">À créer par l’administrateur</span>');
       return '<tr><td><b>' + escapeHtml(employee.name || "Collaborateur") + '</b></td><td>' + credentials + '</td><td>' + status + '</td><td>' + action + '<small class="cc-salary-access-status" data-salary-status="' + escapeHtml(id) + '" aria-live="polite"></small></td></tr>';
     }).join("");
-    pane.innerHTML = '<div class="cc-salary-access-panel"><h2>Accès Mon Salaire</h2><p class="cc-salary-access-note">Liste des collaborateurs actifs et de leur identifiant. Supabase ne permet pas de consulter un mot de passe existant : tu peux en générer un nouveau et le transmettre en privé. Le nouveau mot de passe s’affiche ici jusqu’à ce que tu le masques ou quittes ta session.</p>' +
+    pane.innerHTML = '<div class="cc-salary-access-panel"><h2>Accès Mon Salaire</h2><p class="cc-salary-access-note">Liste des collaborateurs actifs et de leur identifiant. Un mot de passe déjà défini ne peut pas être récupéré. Génère-en un nouveau pour l’afficher et copier ensemble l’identifiant et le mot de passe. Le nouveau mot de passe reste visible dans cette session seulement.</p>' +
       (rows ? '<div class="tablewrap"><table class="cc-salary-access-table"><thead><tr><th>COLLABORATEUR ACTIF</th><th>IDENTIFIANT ET MOT DE PASSE</th><th>ACCÈS</th><th>ACTION</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="cc-salary-access-empty">Aucun collaborateur actif.</div>') + '</div>';
   }
+  function setupSalaryAccessSettingsRouting() {
+    if(typeof window.switchSettingsView==="function"&&!window.ccSalaryAccessSettingsRouting){
+      const original=window.switchSettingsView;
+      window.switchSettingsView=function(view,...args){
+        if(currentProfile?.role!=="admin"&&salaryAccessRoleAllowed()){
+          let saved={};try{saved=JSON.parse(localStorage.getItem("capsule_appPermissions")||"{}")}catch{}
+          const explicitlyHasSettings=Array.isArray(saved?.moduleAccess?.[currentProfile.role])&&saved.moduleAccess[currentProfile.role].includes("settings");
+          if(!explicitlyHasSettings)return showSalaryAccessRegistry();
+        }
+        if(view==="salaryAccess")return showSalaryAccessRegistry();
+        return original.call(this,view,...args);
+      };
+      window.crmSwitchSettingsView=window.switchSettingsView;window.ccSalaryAccessSettingsRouting=true;
+    }
+  }
   function showSalaryAccessRegistry() {
+    if(!salaryAccessRoleAllowed())return;
     renderSalaryAccessRegistry();
     document.querySelectorAll("#screen-settings > [id$='View']").forEach(view => { view.hidden = view.id !== "settingsSalaryAccessView"; });
     document.querySelectorAll("#settingsTabBar [data-settings-view]").forEach(tab => {
       const active = tab.dataset.settingsView === "salaryAccess";
       tab.classList.toggle("active", active); tab.classList.toggle("primary", active); tab.setAttribute("aria-selected", String(active));
     });
-    $("settingsSalaryAccessView").hidden = false;
+    const pane=$("settingsSalaryAccessView");if(pane)pane.hidden = false;
+    if(currentProfile?.role!=="admin"&&pane){
+      pane.innerHTML='<div class="cc-salary-access-panel"><h2>Accès Mon Salaire</h2><p class="cc-salary-access-note">Chargement des accès…</p></div>';
+      invokeAdmin({action:"salary-access-list"}).then(data=>{accountCache=data?.users||[];renderSalaryAccessRegistry()}).catch(error=>{pane.innerHTML='<div class="cc-salary-access-panel"><h2>Accès Mon Salaire</h2><p class="cc-salary-access-note">'+escapeHtml(error.message||"Impossible de charger les accès.")+'</p></div>'});
+    }
   }
 
 
@@ -897,6 +944,67 @@
     if(!window.ccEmployeeStatusObserver){window.ccEmployeeStatusObserver=new MutationObserver(paint);window.ccEmployeeStatusObserver.observe(table,{childList:true,subtree:true})}
     paint();
   }
+  function currentProfileRdvMonth() {
+    const values=Object.fromEntries(new Intl.DateTimeFormat("en",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit"}).formatToParts(new Date()).map(part=>[part.type,part.value]));
+    return values.year+"-"+values.month;
+  }
+  function profileRdvMonthOptions() {
+    const first="2026-11",last=currentProfileRdvMonth(),options=[];
+    for(let value=first;value<=last;){
+      const date=new Date(value+"-01T12:00:00Z"),label=new Intl.DateTimeFormat("fr-FR",{month:"long",year:"numeric",timeZone:"Europe/Zurich"}).format(date);
+      options.push({value,label:label.charAt(0).toLocaleUpperCase("fr")+label.slice(1)});
+      const year=Number(value.slice(0,4)),month=Number(value.slice(5,7));
+      value=month===12?(year+1)+"-01":year+"-"+String(month+1).padStart(2,"0");
+    }
+    return options;
+  }
+  function renderProfileMonthlyAppointments() {
+    const value=$("profileAppointments");if(!value)return;
+    const card=value.closest(".card");if(!card)return;
+    const context=window.crmPerformanceContext?.()||{};
+    const employeeId=String(window.crmSelectedProfileEmployeeId||"");
+    const employee=(context.employees||[]).find(item=>String(item.id)===employeeId);
+    const title=card.querySelector(".metric-top"),meta=card.querySelector(".meta");
+    let select=card.querySelector("#profileAppointmentsMonth");
+    const options=profileRdvMonthOptions();
+    if(!select){
+      select=document.createElement("select");select.id="profileAppointmentsMonth";select.setAttribute("aria-label","Mois des rendez-vous pris");select.style.cssText="margin-top:8px;padding:6px 9px;border:1px solid #594747;border-radius:8px;background:#292323;color:#f3ecea;font:inherit";
+      const place=value.parentElement||card;place.insertAdjacentElement("afterend",select);
+    }
+    const current=options.map(item=>item.value), saved=sessionStorage.getItem("ccProfileRdvMonth")||currentProfileRdvMonth();
+    const selected=current.includes(select.value)?select.value:current.includes(saved)?saved:current[current.length-1];
+    select.innerHTML=options.map(item=>'<option value="'+escapeHtml(item.value)+'">'+escapeHtml(item.label)+'</option>').join("");
+    select.value=selected||"";
+    if(title)title.textContent="Rendez-vous pris · "+(options.find(item=>item.value===select.value)?.label||"novembre 2026");
+    if(!employee){value.textContent="—";if(meta)meta.textContent="Fiche collaborateur introuvable";return}
+    const email=String(employee.brokerlinkEmail||employee.brokerlink_email||"").trim().toLowerCase();
+    if(!email){value.textContent="—";if(meta)meta.textContent="E-mail Brokerlink manquant sur la fiche";return}
+    let rows=context.kpiRows||[];
+    try{const cached=JSON.parse(localStorage.getItem("capsule_kpiRows")||"null");if(Array.isArray(cached))rows=cached}catch{}
+    const matching=rows.filter(row=>{
+      if(row?.source!=="brokerlink-api")return false;
+      const rowEmail=String(row.brokerlink_email||row.email||"").trim().toLowerCase();
+      return rowEmail===email&&String(row.date||row.jour||"").slice(0,7)===select.value;
+    });
+    let total=0,hasMetric=false;
+    for(const row of matching){const raw=row.rdv_pris??row.rendez_vous??row.appointments;if(raw!==null&&raw!==undefined&&raw!==""){const numeric=Number(String(raw).replace(",",".").replace(/\s/g,""));if(Number.isFinite(numeric)){total+=numeric;hasMetric=true}}}
+    value.textContent=hasMetric?total.toLocaleString("fr-FR"):"—";
+    if(meta)meta.textContent=hasMetric?matching.length+" jour(s) Brokerlink · total du mois":"Aucune donnée Brokerlink pour ce mois";
+    select.onchange=()=>{sessionStorage.setItem("ccProfileRdvMonth",select.value);renderProfileMonthlyAppointments()};
+  }
+  function setupProfileMonthlyAppointments() {
+    if(typeof window.renderProfile==="function"&&!window.ccProfileAppointmentsWrapped){
+      const original=window.renderProfile;
+      window.renderProfile=function(...args){const result=original.apply(this,args);window.setTimeout(renderProfileMonthlyAppointments,0);return result};
+      window.ccProfileAppointmentsWrapped=true;
+    }
+    if(!window.ccProfileAppointmentsEvents){
+      window.ccProfileAppointmentsEvents=true;
+      window.addEventListener("cc:dashboard-data-updated",()=>window.setTimeout(renderProfileMonthlyAppointments,0));
+      document.addEventListener("change",event=>{if(event.target?.id==="profileAppointmentsMonth"){sessionStorage.setItem("ccProfileRdvMonth",event.target.value);renderProfileMonthlyAppointments()}});
+    }
+  }
+
   async function setupLiveCollaboratorSync() {
     if (!currentUser || !cloudReady) return;
     const { data, error } = await client.from("crm_state").select("state_key,updated_at").in("state_key",dataKeys);
@@ -951,6 +1059,10 @@
       catch (archiveError) { console.warn("Archived salary access sync:", archiveError); }
     }
     applyPermissions(profile.role);
+    setupSalaryAccessRolePermissions();
+    setupSalaryAccessSettingsRouting();
+    if(profile.role==="admin"||salaryAccessRoleAllowed(profile.role))renderSalaryAccessRegistry();
+    setupProfileMonthlyAppointments();
     await setupLiveCollaboratorSync();
     setupTaskBoardEnhancements();
     setupEmployeeStatusColors();
@@ -1608,10 +1720,12 @@
       if (hidePassword) { issuedSalaryPasswords.delete(String(hidePassword.dataset.hideSalaryPassword)); showSalaryAccessRegistry(); return; }
       const copyPassword = event.target.closest("[data-copy-salary-password]");
       if (copyPassword) {
-        const value = issuedSalaryPasswords.get(String(copyPassword.dataset.copySalaryPassword));
+        const employeeId=String(copyPassword.dataset.copySalaryPassword),value=issuedSalaryPasswords.get(employeeId);
         if (!value) return;
-        try { await navigator.clipboard.writeText(value); showMessage("accountMessage", "Nouveau mot de passe copié.", false); }
-        catch { showMessage("accountMessage", "Copie impossible depuis ce navigateur. Sélectionne le mot de passe affiché.", true); }
+        const account=accountCache.find(item=>String(item.employee_id)===employeeId),status=document.querySelector('[data-salary-status="'+CSS.escape(employeeId)+'"]');
+        const credentials="Identifiant : @"+String(account?.username||"")+"\nMot de passe : "+value;
+        try { await navigator.clipboard.writeText(credentials); if(status)status.textContent="Identifiant et mot de passe copiés."; }
+        catch { if(status)status.textContent="Copie impossible depuis ce navigateur. Sélectionne les deux informations affichées."; }
         return;
       }
       const reset = event.target.closest("[data-reset-salary-access]");
@@ -1620,9 +1734,10 @@
         const password = generateTemporaryPassword(); reset.disabled = true;
         if (status) status.textContent = "Remplacement du mot de passe…";
         try {
-          await invokeAdmin({ action:"update", id:reset.dataset.resetSalaryAccess, role:"caller", isActive:true, password });
+          if(currentProfile?.role==="admin") await invokeAdmin({ action:"update", id:reset.dataset.resetSalaryAccess, role:"caller", isActive:true, password });
+          else await invokeAdmin({ action:"salary-access-reset", id:reset.dataset.resetSalaryAccess, password });
           issuedSalaryPasswords.set(employeeId, password);
-          await listAccounts();
+          if(currentProfile?.role==="admin") await listAccounts();
           showSalaryAccessRegistry();
           const updatedStatus = document.querySelector('[data-salary-status="' + CSS.escape(employeeId) + '"]');
           if (updatedStatus) updatedStatus.textContent = "Mot de passe remplacé. Transmets-le au collaborateur.";
