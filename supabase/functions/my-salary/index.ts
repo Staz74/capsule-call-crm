@@ -69,7 +69,7 @@ Deno.serve(async(req:Request)=>{
   let absences=(Array.isArray(attendance.absences)?attendance.absences:[]).filter((item:any)=>{const d=dateOf(item.date);return d>=malusStart&&d<=monthEnd;});
   const demoMode=profile.employee_id===3&&profile.username==="christelle.laivao"&&month===currentMonth()&&monthRows.length===0&&lates.length===0&&absences.length===0;
   if(demoMode){
-    const demoDates=[month+"-02",month+"-03",month+"-04",month+"-05"];
+    const demoDates=[month+"-10",month+"-11",month+"-12",month+"-13"];
     monthRows=[
       {date:demoDates[0],collaborateur:employee.name,rdv_pris:1,ouvertures_confirmees:1},
       {date:demoDates[1],collaborateur:employee.name,rdv_pris:3,ouvertures_confirmees:1},
@@ -106,6 +106,9 @@ Deno.serve(async(req:Request)=>{
       lates.push({date:d,minutes:delay,level,source:"schedule"});
     }
   }
+  // Reapply the payroll cutoff after demo rows and schedule-derived lateness have been added.
+  lates=lates.filter((item:any)=>{const d=dateOf(item.date);return d>=malusStart&&d<=monthEnd;});
+  absences=absences.filter((item:any)=>{const d=dateOf(item.date);return d>=malusStart&&d<=monthEnd;});
   const appointmentAliases=["rdv_pris","rendez_vous","appointments","appointment_count"];
   const openingAliases=["ouverture_validee","ouvertures_validees","ouverture_confirmee","ouvertures_confirmees","signature_confirmee","signatures_confirmees","signatures_validees","ouvertures_lpp","signatures_lca","confirmed_signatures","validated_signatures","signed_accounts","signatures","openings","validated_openings"];
   const perDay=new Map<string,number>(),opensByDay=new Map<string,number>();
