@@ -46,7 +46,7 @@ Deno.serve(async(req:Request)=>{
   const employee=(Array.isArray(state.employees)?state.employees:[]).find((item:any)=>String(item?.id)===String(profile.employee_id));
   if(!employee)return json({error:"La fiche collaborateur liée à ce compte est introuvable."},404);
   const rules=state.controlRules?.salary&&typeof state.controlRules.salary==="object"?state.controlRules.salary:{};
-  const baseSalary=money(rules.base,2000000),target=money(rules.rdvTarget,3);
+  const fullMonthBaseSalary=money(rules.base,2000000),isNovember2026Prorata=month==="2026-11",baseSalary=isNovember2026Prorata?1500000:fullMonthBaseSalary,target=money(rules.rdvTarget,3);
   const configured={
     base:baseSalary,rdvTarget:target,rdv0:money(rules.rdv0),rdv1:money(rules.rdv1),rdv2:money(rules.rdv2),
     lateGreen:money(rules.lateGreen),lateOrange:money(rules.lateOrange),lateRed:money(rules.lateRed),
@@ -161,7 +161,7 @@ Deno.serve(async(req:Request)=>{
   const absenceMalusConfigured=[settings.absenceHalf,settings.absenceFull].some(v=>v>0);
   return json({
     month,username:profile.username,displayName:profile.display_name,employeeName:employee.name,
-    baseSalary,salaryAfterMaluses,totalDeductions,productionMalus,lateMalus,absenceMalus,
+    baseSalary,fullMonthBaseSalary,isNovember2026Prorata,salaryAfterMaluses,totalDeductions,productionMalus,lateMalus,absenceMalus,
     currentRankEstimate:openingRank?salaryAfterMaluses*openingRank.coefficient:null,
     nextRankEstimate:nextRank?salaryAfterMaluses*nextRank.coefficient:null,
     rank:openingRank?{name:openingRank.name,min:openingRank.min,coefficient:openingRank.coefficient}:null,
