@@ -39,7 +39,7 @@ Deno.serve(async(req:Request)=>{
   if(!profile||!profile.is_active||profile.role!=="caller"||user.app_metadata?.role!=="caller"||!profile.employee_id)return json({error:"Accès réservé au compte collaborateur actif."},403);
   const body=await req.json().catch(()=>({}));
   const month=typeof body.month==="string"&&/^\d{4}-(0[1-9]|1[0-2])$/.test(body.month)?body.month:currentMonth();
-  const monthStart=month+"-01",monthEnd=month+"-31",attendanceKey="local:cc_attendance_"+profile.employee_id;
+  const monthStart=month+"-01",monthEnd=month+"-31",malusStart=month==="2026-11"?"2026-11-10":monthStart,attendanceKey="local:cc_attendance_"+profile.employee_id;
   const {data:rows,error:stateError}=await admin.from("crm_state").select("state_key,payload").in("state_key",["employees","kpiRows","controlRules",attendanceKey]);
   if(stateError)throw stateError;
   const state=Object.fromEntries((rows||[]).map((row:any)=>[row.state_key,row.payload]));
@@ -65,8 +65,8 @@ Deno.serve(async(req:Request)=>{
   });
   let monthRows=matched.filter((row:any)=>{const d=dateOf(field(row,["date","jour","date_activite","created_at"]));return d>=monthStart&&d<=monthEnd;});
   const attendance=state[attendanceKey]&&typeof state[attendanceKey]==="object"?state[attendanceKey]:{};
-  let lates=(Array.isArray(attendance.lates)?attendance.lates:[]).filter((item:any)=>{const d=dateOf(item.date);return d>=monthStart&&d<=monthEnd;});
-  let absences=(Array.isArray(attendance.absences)?attendance.absences:[]).filter((item:any)=>{const d=dateOf(item.date);return d>=monthStart&&d<=monthEnd;});
+  let lates=(Array.isArray(attendance.lates)?attendance.lates:[]).filter((item:any)=>{const d=dateOf(item.date);return d>=malusStart&&d<=monthEnd;});
+  let absences=(Array.isArray(attendance.absences)?attendance.absences:[]).filter((item:any)=>{const d=dateOf(item.date);return d>=malusStart&&d<=monthEnd;});
   const demoMode=profile.employee_id===3&&profile.username==="christelle.laivao"&&month===currentMonth()&&monthRows.length===0&&lates.length===0&&absences.length===0;
   if(demoMode){
     const demoDates=[month+"-02",month+"-03",month+"-04",month+"-05"];
@@ -121,7 +121,7 @@ Deno.serve(async(req:Request)=>{
   const maluses:any[]=[];
   let productionMalus=0,missingRdv=0;
   for(const [date,count] of [...perDay.entries()].sort(([a],[b])=>a.localeCompare(b))){
-    if(absenceDays.has(date))continue;
+    if(date<malusStart||absenceDays.has(date))continue;
     if(count<target){
       const amount=rdvAmount(count);productionMalus+=amount;missingRdv+=Math.max(0,target-count);
       maluses.push({date,label:dateLabel(date),kind:"rdv",detail:count+" rendez-vous sur "+target,amount});
