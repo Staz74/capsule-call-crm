@@ -87,10 +87,11 @@
   }
   function renderPay(data){
     const estimate=data.salaryAfterMaluses??data.baseSalary;
-    const estimateLabel=data.hasKpiData?"Base "+amount(data.baseSalary)+" · − "+amount(data.totalDeductions)+" de malus":"Base paramétrée "+amount(data.baseSalary)+" · en attente des données KPI";
+    const estimateLabel=data.hasKpiData?"Base "+amount(data.baseSalary)+" · − "+amount(data.totalDeductions)+" de malus":"Base "+amount(data.baseSalary)+" · en attente des données KPI";
+    const prorataNote=data.isNovember2026Prorata?'<div class="salary-proration-note" style="margin-top:12px;color:#e6cbd3;font-size:.88rem;line-height:1.5">Prorata de novembre 2026 · calcul à partir du 10 novembre (démarrage commun du suivi). À partir de décembre : base mensuelle complète de '+amount(data.fullMonthBaseSalary)+'.</div>':"";
     const current=data.currentRankEstimate==null?"—":amount(data.currentRankEstimate);
     const next=data.nextRankEstimate==null?"—":amount(data.nextRankEstimate);
-    return '<div class="salary-pay-label">Salaire du mois après malus (en temps réel)</div><div class="salary-pay-value serif">'+amount(estimate)+'</div><div class="salary-pay-meta">'+estimateLabel+'</div><div class="salary-estimates"><div><span>Estimation avec ton rang actuel'+(data.rank?' ('+esc(capitalize(data.rank.name))+' × '+data.rank.coefficient+')':'')+'</span><b class="serif">'+current+'</b></div><div class="next-estimate"><span>Si tu passes '+(data.nextRank?esc(capitalize(data.nextRank.name)):"au rang suivant")+(data.nextRank?' (× '+data.nextRank.coefficient+')':'')+'</span><b class="serif">'+next+'</b></div></div>';
+    return '<div class="salary-pay-label">Salaire du mois après malus (en temps réel)</div><div class="salary-pay-value serif">'+amount(estimate)+'</div><div class="salary-pay-meta">'+estimateLabel+'</div>'+prorataNote+'<div class="salary-estimates"><div><span>Estimation avec ton rang actuel'+(data.rank?' ('+esc(capitalize(data.rank.name))+' × '+data.rank.coefficient+')':'')+'</span><b class="serif">'+current+'</b></div><div class="next-estimate"><span>Si tu passes '+(data.nextRank?esc(capitalize(data.nextRank.name)):"au rang suivant")+(data.nextRank?' (× '+data.nextRank.coefficient+')':'')+'</span><b class="serif">'+next+'</b></div></div>';
   }
   const capitalize=value=>String(value||"").toLowerCase().replace(/^./,s=>s.toUpperCase());
   function renderMaluses(data){
