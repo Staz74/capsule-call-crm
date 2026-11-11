@@ -60,26 +60,43 @@ Deno.serve(async (request: Request) => {
 
   try {
     const authorization = request.headers.get("Authorization") || "";
-    const token = authorization.replace(/^Bearer\s+/i, "").trim();
+    const token = authorization.replace(/^Bearer\\s+/i, "").trim();
+    const cronSecret = request.headers.get("x-brokerlink-sync-secret") || "";
     const projectUrl = Deno.env.get("SUPABASE_URL") || "";
     const publishableKey = getPublishableKey();
-    if (!token || !projectUrl || !publishableKey) return reply({ error: "Session CRM invalide." }, 401);
+    if ((!token && !cronSecret) || !projectUrl || !publishableKey) return reply({ error: "Session CRM invalide." }, 401);
 
     const supabase = createClient(projectUrl, publishableKey, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-      global: { headers: { Authorization: authorization } },
+      ...(authorization ? { global: { headers: { Authorization: authorization } } } : {}),
     });
-    const { data: authData, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !authData.user) return reply({ error: "Session CRM expirée. Reconnecte-toi." }, 401);
+    let scheduledRun = false;
+    if (cronSecret) {
+      const { data: validSecret, error: secretError } = await supabase.rpc("validate_brokerlink_sync_cron_secret", { p_candidate: cronSecret });
+      if (secretError || validSecret !== true) return reply({ error: "Authentification de synchronisation invalide." }, 401);
+      scheduledRun = true;
+    } else {
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) return reply({ error: "Session CRM expirée. Reconnecte-toi." }, 401);
 
-    const { data: profile, error: profileError } = await supabase
-      .from("crm_profiles")
-      .select("role,is_active")
-      .eq("id", authData.user.id)
-      .maybeSingle();
-    if (profileError || !profile || !profile.is_active) return reply({ error: "Compte CRM inactif ou introuvable." }, 403);
-    if (!["admin", "chef_plateau", "directeur_operationnel", "imperator"].includes(profile.role)) {
-      return reply({ error: "Ce rôle n’est pas autorisé à synchroniser les données de performance." }, 403);
+      const { data: profile, error: profileError } = await supabase
+        .from("crm_profiles")
+        .select("role,is_active")
+        .eq("id", authData.user.id)
+        .maybeSingle();
+      if (profileError || !profile || !profile.is_active) return reply({ error: "Compte CRM inactif ou introuvable." }, 403);
+      if (!["admin", "chef_plateau", "directeur_operationnel", "imperator"].includes(profile.role)) {
+        return reply({ error: "Ce rôle n’est pas autorisé à synchroniser les données de performance." }, 403);
+      }
+    }
+    let storageClient = supabase;
+    if (scheduledRun) {
+      const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
+      const serviceKey = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+      if (!serviceKey) return reply({ error: "La clé serveur Supabase n’est pas configurée." }, 503);
+      storageClient = createClient(projectUrl, serviceKey, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      });
     }
 
     const rawApiKey = Deno.env.get("BROKERLINK_API_KEY") || "";
@@ -156,7 +173,7 @@ Deno.serve(async (request: Request) => {
       if (page > 101) return reply({ error: "L’import dépasse la limite de pages autorisée." }, 413);
     } while (page <= lastPage);
 
-    const { error: kpiSaveError } = await supabase.rpc("crm_merge_state", {
+    const { error: kpiSaveError } = await storageClient.rpc("crm_merge_state", {
       p_state_key: "kpiRows",
       p_base: [],
       p_next: rows,
