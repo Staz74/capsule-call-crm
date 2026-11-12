@@ -965,227 +965,200 @@
   function setupRoleTaskRules() {
     if (window.ccRoleTaskRulesInstalled || typeof window.ensureMandatoryTasks !== "function") return;
     window.ccRoleTaskRulesInstalled = true;
-    const isDone = (task) => ["Terminée","Terminé","Effectué","Done"].includes(String(task?.status || ""));
-    const dayName = (date) => new Intl.DateTimeFormat("fr-FR",{timeZone:"Europe/Zurich",weekday:"long"}).format(new Date(date+"T12:00:00Z"));
+    const isDone = task => ["Terminée","Terminé","Effectué","Done"].includes(String(task?.status || ""));
     const taskRole = () => String(window.crmCurrentRole?.() || "");
     const shouldSeeTasks = () => ["admin","chef_plateau"].includes(taskRole());
-    const visibleTaskList = (items) => taskRole() === "admin"
+    const visibleTaskList = items => taskRole() === "admin"
       ? items
       : taskRole() === "chef_plateau"
         ? items.filter(item => item.assignedRole === "chef_plateau")
         : [];
+    const dayDefaults = [1,2,3,4,5];
 
     function generateDailyTasks() {
       if (window.crmCanPage && !["tasks","quality","reports","control","employees","onboarding"].some(page => window.crmCanPage(page))) return;
       window.pruneCompletedTasks?.();
       const state = window.crmGetLocalState?.();
       if (!state || !Array.isArray(state.tasks)) return;
-      const tasks = state.tasks;
-      const today = taskBoardDate();
+      const tasks = state.tasks, today = taskBoardDate();
       const weekday = new Date(today+"T12:00:00Z").getUTCDay();
-      const requiredDaysDefault = [1,2,3,4,5];
-      const oldState = JSON.stringify(tasks);
-      const oldHistory = JSON.stringify(state.taskHistory || []);
-      const reportKinds = {
-        dailyReport:"Rapport journalier",morning:"Réunion du matin",evening:"Réunion du soir",
-        trainingMeeting:"Réunion formation",urgentMeeting:"Réunion urgence"
+      const oldTasks = JSON.stringify(tasks), taskHistory = Array.isArray(state.taskHistory) ? state.taskHistory : [];
+      const oldHistory = JSON.stringify(taskHistory);
+      const reportKinds = {dailyReport:"Rapport journalier",morning:"Réunion du matin",evening:"Réunion du soir",trainingMeeting:"Réunion formation",urgentMeeting:"Réunion urgence"};
+      const reportTitles = {dailyReport:"Valider le rapport journalier",morning:"Préparer la réunion du matin",evening:"Préparer la réunion du soir",trainingMeeting:"Préparer la réunion formation",urgentMeeting:"Préparer la réunion urgence"};
+      const oldWeekly = /^auto:(listen|coach):\\d+:\\d{4}-\\d{2}-\\d{2}$/;
+      const isTodaysOldCoachTask = task => {
+        const match=String(task?.id||"").match(/^auto:coach:\\d+:(\\d{4}-\\d{2}-\\d{2}):\\d+$/);
+        return !!match&&match[1]===today;
       };
-      const reportTitles = {
-        dailyReport:"Valider le rapport journalier",morning:"Préparer la réunion du matin",
-        evening:"Préparer la réunion du soir",trainingMeeting:"Préparer la réunion formation",
-        urgentMeeting:"Préparer la réunion urgence"
+      const genericPlaceholder = task => {
+        const title=String(task?.title||task?.name||"").trim().toLocaleLowerCase("fr");
+        return title==="action à réaliser" && /ouvrir le formulaire|enregistrer le compte rendu/i.test(String(task?.desc||""));
       };
-      const legacyWeeklyId = /^auto:(listen|coach):\d+:\d{4}-\d{2}-\d{2}$/;
-      const genericPlaceholder = (task) => {
-        const title = String(task?.title || task?.name || "").trim().toLocaleLowerCase("fr");
-        return title === "action à réaliser" && /ouvrir le formulaire|enregistrer le compte rendu/i.test(String(task?.desc || ""));
-      };
-      const retained = tasks.filter(task => !legacyWeeklyId.test(String(task.id)) && !genericPlaceholder(task));
-      retained.forEach(task => {
-        if (!task.assignedRole) task.assignedRole = "chef_plateau";
-      });
+      const retained = tasks.filter(task => !oldWeekly.test(String(task.id)) && !isTodaysOldCoachTask(task) && !genericPlaceholder(task));
+      retained.forEach(task => { if (!task.assignedRole) task.assignedRole="chef_plateau"; });
       tasks.splice(0,tasks.length,...retained);
-      const findTask = id => tasks.find(task => String(task.id) === String(id));
+      const findTask = id => tasks.find(task => String(task.id)===String(id));
       const upsert = next => {
-        const previous = findTask(next.id);
-        if (previous) {
-          const done = isDone(previous);
-          Object.assign(previous,next);
-          previous.status = done ? "Terminée" : "À faire";
-          return previous;
-        }
-        tasks.push(next);
-        return next;
+        const existing=findTask(next.id);
+        if(existing){const wasDone=isDone(existing),absence=existing.absenceReason;Object.assign(existing,next);existing.absenceReason=absence||next.absenceReason||"";existing.status=wasDone?"Terminée":"À faire";return existing}
+        tasks.push(next);return next;
       };
-      const controls = state.controlRules || {};
-      const reports = Array.isArray(state.reports) ? state.reports : [];
-      for (const key of Object.keys(reportKinds)) {
-        if (!controls.required?.[key]) continue;
-        const daysRaw = controls.required?.[key+"Days"];
-        const days = Array.isArray(daysRaw) && daysRaw.length ? daysRaw.map(Number) : requiredDaysDefault;
-        if (!days.includes(weekday)) continue;
-        const id = "auto:"+key+":"+today;
-        const existing = findTask(id);
-        const recorded = reports.find(report => String(report.date||"").slice(0,10) === today && report.kind === reportKinds[key]);
-        if (recorded) {
-          if (existing && !isDone(existing)) {
-            existing.status = "Terminée"; existing.completedOn = today;
-            existing.completedAt = recorded.createdAt || recorded.date+"T12:00:00.000Z";
-            existing.completedBy = recorded.owner || "Chef de plateau";
-            existing.summary = "Compte rendu enregistré.";
-          }
+      const controls=state.controlRules||{}, reports=Array.isArray(state.reports)?state.reports:[];
+      for(const key of Object.keys(reportKinds)){
+        if(!controls.required?.[key])continue;
+        const selected=controls.required?.[key+"Days"];
+        const days=Array.isArray(selected)&&selected.length?selected.map(Number):dayDefaults;
+        if(!days.includes(weekday))continue;
+        const id="auto:"+key+":"+today, existing=findTask(id);
+        const recorded=reports.find(report=>String(report.date||"").slice(0,10)===today&&report.kind===reportKinds[key]);
+        if(recorded){
+          const completedAt=recorded.createdAt||recorded.date+"T12:00:00.000Z";
+          const reportTask=upsert({id,title:reportTitles[key],desc:"Compte rendu enregistré.",owner:recorded.owner||"Chef de plateau",due:today,status:"Terminée",priority:"Normale",source:"Contrôle",action:key,assignedRole:"chef_plateau"});
+          reportTask.status="Terminée";reportTask.completedOn=today;reportTask.completedAt=completedAt;reportTask.completedBy=recorded.owner||"Chef de plateau";reportTask.summary="Compte rendu enregistré.";
+          const prior=taskHistory.find(item=>String(item.taskId)===String(id));
+          if(!prior)taskHistory.unshift({id:Date.now()+Object.keys(reportKinds).indexOf(key),taskId:id,title:reportTitles[key],owner:reportTask.completedBy,source:"Rapports & réunions",completedAt,completedOn:today,details:recorded,summary:"Compte rendu enregistré."});
+          else{prior.source="Rapports & réunions";prior.completedOn=today;prior.completedAt=completedAt;prior.summary="Compte rendu enregistré.";prior.details=recorded}
           continue;
         }
-        upsert({id,title:reportTitles[key],desc:"Enregistrer le compte rendu obligatoire pour aujourd’hui.",owner:"Chef de plateau",due:today,status:"À faire",priority:"Normale",source:"Contrôle",action:key,assignedRole:"chef_plateau"});
+        upsert({id,title:reportTitles[key],desc:"Compte rendu obligatoire pour aujourd’hui.",owner:"Chef de plateau",due:today,status:"À faire",priority:"Normale",source:"Contrôle",action:key,assignedRole:"chef_plateau"});
       }
 
-      const employees = (Array.isArray(state.employees) ? state.employees : [])
-        .filter(employee => !employee.archivedAt && ["Débutant","Autonome"].includes(employee.status));
-      const config = controls.quality || {};
-      const taskHistory = Array.isArray(state.taskHistory) ? state.taskHistory : [];
-      for (const employee of employees) {
-        const stage = employee.status === "Débutant" ? "beginner" : "autonomy";
-        const rule = config[stage] || {};
-        for (const [kind,field,daysField,history] of [
-          ["listen","listens","listenDays",state.qualityHistory],
-          ["coach","coaching","coachingDays",state.coachingHistory]
-        ]) {
-          const weeklyTarget = Math.max(0,Math.floor(Number(rule[field])||0));
-          if (!weeklyTarget) continue;
-          const configuredDays = Array.isArray(rule[daysField]) && rule[daysField].length
-            ? rule[daysField].map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6)
-            : Array.isArray(rule.listenDays) && rule.listenDays.length
-              ? rule.listenDays.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6)
-              : requiredDaysDefault;
-          const days = [...new Set(configuredDays)].sort((a,b) => ((a+6)%7)-((b+6)%7));
-          if (!days.length || !days.includes(weekday)) continue;
-          const weekdayPosition = days.indexOf(weekday);
-          const base = Math.floor(weeklyTarget/days.length), remainder = weeklyTarget%days.length;
-          const dailyTarget = base + (weekdayPosition < remainder ? 1 : 0);
-          if (dailyTarget < 1) continue;
-          const records = (Array.isArray(history) ? history : [])
-            .filter(record => String(record.date||"").slice(0,10) === today &&
-              String(record.employee||"").trim().toLocaleLowerCase("fr") === String(employee.name||"").trim().toLocaleLowerCase("fr"))
-            .sort((a,b) => Number(a.id||0)-Number(b.id||0));
-          const owner = employee.manager || "Chef de plateau";
-          const label = kind === "listen" ? "Finaliser les écoutes qualité" : "Réaliser le coaching";
-          const source = kind === "listen" ? "Qualité" : "Coaching";
-          for (let slot=1;slot<=dailyTarget;slot++) {
-            const id = "auto:"+kind+":"+employee.id+":"+today+":"+slot;
-            const record = records[slot-1] || null;
-            const previous = findTask(id);
-            const title = label+" · "+employee.name+(dailyTarget>1 ? " ("+slot+"/"+dailyTarget+")" : "");
-            const task = upsert({
-              id,title,desc:(kind==="listen"?"Écoute qualité":"Coaching")+" programmé pour aujourd’hui · "+dayName(today)+".",
-              owner,due:today,status:"À faire",priority:"Normale",source:"Contrôle",
-              action:kind==="listen"?"quality":"coaching",assignedRole:"chef_plateau",
-              employee:employee.name,employeeId:employee.id
-            });
-            if (record) {
-              task.status = "Terminée"; task.completedOn = today;
-              task.completedAt = record.createdAt || record.date+"T12:00:00.000Z";
-              task.completedBy = record.evaluator || record.coach || owner;
-              const historyExists = taskHistory.some(item => String(item.taskId) === String(id));
-              if (!historyExists) taskHistory.unshift({
-                id:Date.now()+slot,taskId:id,title,owner:task.completedBy,source,
-                completedAt:task.completedAt,completedOn:today,details:record,
-                summary:String(record.notes||record.result||record.objective||"Enregistrement effectué.")
-              });
-            } else if (previous && isDone(previous)) {
-              task.status = "Terminée";
+      const employees=(Array.isArray(state.employees)?state.employees:[]).filter(employee=>!employee.archivedAt&&["Débutant","Autonome"].includes(employee.status));
+      const rules=controls.quality||{};
+      const qualityHistory=Array.isArray(state.qualityHistory)?state.qualityHistory:[];
+      const coachingHistory=Array.isArray(state.coachingHistory)?state.coachingHistory:[];
+      for(const employee of employees){
+        const stage=employee.status==="Débutant"?"beginner":"autonomy",rule=rules[stage]||{};
+        const listenTarget=Math.max(0,Math.floor(Number(rule.listens)||0));
+        const coachingTarget=Math.max(0,Math.floor(Number(rule.coaching)||0));
+        const weeklySessions=Math.max(listenTarget,coachingTarget);
+        if(!weeklySessions)continue;
+        const validDays=value=>Array.isArray(value)&&value.length?[...new Set(value.map(Number).filter(day=>Number.isInteger(day)&&day>=0&&day<=6))]:dayDefaults;
+        const listenDays=validDays(rule.listenDays), coachingDays=validDays(rule.coachingDays);
+        const sharedDays=listenDays.filter(day=>coachingDays.includes(day));
+        const days=(sharedDays.length?sharedDays:listenDays).sort((a,b)=>((a+6)%7)-((b+6)%7));
+        if(!days.includes(weekday))continue;
+        const position=days.indexOf(weekday),base=Math.floor(weeklySessions/days.length),remainder=weeklySessions%days.length;
+        const dailyTarget=base+(position<remainder?1:0);
+        if(dailyTarget<1)continue;
+        const norm=name=>String(name||"").trim().toLocaleLowerCase("fr");
+        const listens=qualityHistory.filter(record=>String(record.date||"").slice(0,10)===today&&norm(record.employee)===norm(employee.name)).sort((a,b)=>Number(a.id||0)-Number(b.id||0));
+        const coachings=coachingHistory.filter(record=>String(record.date||"").slice(0,10)===today&&norm(record.employee)===norm(employee.name)).sort((a,b)=>Number(a.id||0)-Number(b.id||0));
+        const owner=employee.manager||"Chef de plateau";
+        for(let slot=1;slot<=dailyTarget;slot++){
+          const id="auto:listen:"+employee.id+":"+today+":"+slot, previous=findTask(id);
+          const listenRecord=listens[slot-1]||null, coachingRecord=coachings[slot-1]||null;
+          const absence=previous&&isDone(previous)&&String(previous.absenceReason||"").trim();
+          const hasListen=!!listenRecord, hasCoaching=!!coachingRecord;
+          const complete=!!absence||(hasListen&&hasCoaching);
+          const stageAction=complete?"coaching":hasListen?"coaching":"quality";
+          const title=(complete?"Séance terminée":stageAction==="quality"?"Écoute":"Coaching")+" · "+employee.name+(dailyTarget>1?" ("+slot+"/"+dailyTarget+")":"");
+          const existingStatus=previous?.status;
+          const task=upsert({
+            id,title,desc:complete?"Écoute et coaching enregistrés aujourd’hui.":stageAction==="quality"?"Écoute qualité à enregistrer · coaching à suivre.":"Écoute enregistrée · coaching à effectuer.",
+            owner,due:today,status:complete?"Terminée":"À faire",priority:"Normale",source:"Contrôle",
+            action:stageAction,assignedRole:"chef_plateau",employee:employee.name,employeeId:employee.id
+          });
+          if(absence){task.status="Terminée";task.absenceReason=previous.absenceReason;task.summary=previous.summary||("Collaborateur absent — "+previous.absenceReason)}
+          else if(complete){
+            task.status="Terminée";task.completedOn=today;
+            task.completedAt=coachingRecord.createdAt||coachingRecord.date+"T12:00:00.000Z";
+            task.completedBy=coachingRecord.coach||coachingRecord.owner||owner;
+            const prior=taskHistory.find(item=>String(item.taskId)===String(id));
+            if(!prior)taskHistory.unshift({id:Date.now()+slot,taskId:id,title,owner:task.completedBy,source:"Écoute & Coaching",completedAt:task.completedAt,completedOn:today,details:{quality:listenRecord,coaching:coachingRecord},summary:"Écoute et coaching enregistrés."});
+            else{prior.source="Écoute & Coaching";prior.completedOn=today;prior.summary="Écoute et coaching enregistrés.";prior.details={quality:listenRecord,coaching:coachingRecord}}
+          }else{
+            task.status="À faire";delete task.completedOn;delete task.completedAt;delete task.completedBy;
+            if(hasListen){
+              for(let i=taskHistory.length-1;i>=0;i--)if(String(taskHistory[i].taskId)===String(id))taskHistory.splice(i,1);
             }
           }
+          if(existingStatus==="Terminée"&&hasListen&&!hasCoaching&&!absence)task.status="À faire";
         }
       }
-      if (JSON.stringify(tasks) !== oldState) localStorage.setItem("capsule_tasks",JSON.stringify(tasks));
-      if (JSON.stringify(taskHistory) !== oldHistory) localStorage.setItem("capsule_taskHistory",JSON.stringify(taskHistory));
+      if(JSON.stringify(tasks)!==oldTasks)localStorage.setItem("capsule_tasks",JSON.stringify(tasks));
+      if(JSON.stringify(taskHistory)!==oldHistory)localStorage.setItem("capsule_taskHistory",JSON.stringify(taskHistory));
     }
 
-    const originalRenderTasks = window.renderTasks;
-    if (typeof originalRenderTasks === "function") {
-      window.renderTasks = function(...args) {
-        const state = window.crmGetLocalState?.(), items = state?.tasks;
-        if (!Array.isArray(items)) return originalRenderTasks.apply(this,args);
-        const all = items.slice(), visible = visibleTaskList(all);
+    function stageFor(task,state){
+      const employee=(state.employees||[]).find(item=>String(item.id)===String(task.employeeId))||
+        (state.employees||[]).find(item=>String(item.name||"").trim().toLocaleLowerCase("fr")===String(task.employee||"").trim().toLocaleLowerCase("fr"))||
+        (state.employees||[]).find(item=>String(task.title||"").toLocaleLowerCase("fr").includes(String(item.name||"").toLocaleLowerCase("fr")));
+      return employee?.status==="Autonome"?"autonomie":employee?.status==="Débutant"?"debutant":"";
+    }
+    function taskCard(task,state,completed){
+      const stage=stageFor(task,state),name=String(task.employee||"").trim()||(state.employees||[]).find(item=>String(item.id)===String(task.employeeId))?.name||String(task.title||"Tâche");
+      const kind=task.action==="quality"?"Écoute":task.action==="coaching"?"Coaching":task.action==="dailyReport"?"Rapport":"Action";
+      const stageLabel=stage==="autonomie"?"Autonome":stage==="debutant"?"Débutant":"";
+      const info=String(task.absenceReason||task.desc||"").trim();
+      const klass=stage?" cc-stage-"+stage:" cc-stage-neutral";
+      const roleAttrs=completed?"":" data-task-open=\""+escapeHtml(String(task.id))+"\" tabindex=\"0\" role=\"button\"";
+      return '<div class="task cc-pipeline-card'+klass+(completed?' cc-pipeline-complete':' cc-pipeline-open')+'"'+roleAttrs+'>'+
+        '<div class="cc-pipeline-meta"><span class="cc-pipeline-kind">'+(completed?'✓ Terminé':escapeHtml(kind))+'</span>'+
+        (stageLabel?'<span class="cc-stage-badge cc-stage-badge-'+stage+'">'+escapeHtml(stageLabel)+'</span>':'')+'</div>'+
+        '<div class="cc-pipeline-name">'+escapeHtml(name)+'</div>'+
+        '<p class="cc-pipeline-desc">'+escapeHtml(info)+'</p>'+
+        '<div class="cc-pipeline-foot"><span>'+escapeHtml(String(task.due||"Aujourd’hui"))+'</span><span class="cc-pipeline-cta">'+(completed?'Enregistré':'Ouvrir →')+'</span></div></div>';
+    }
+    function renderPipeline(){
+      generateDailyTasks();
+      const board=$("taskBoard"),state=window.crmGetLocalState?.();
+      if(!board||!state)return;
+      const items=visibleTaskList(Array.isArray(state.tasks)?state.tasks:[]);
+      const done=items.filter(isDone);
+      const listens=items.filter(item=>!isDone(item)&&item.action==="quality");
+      const coachings=items.filter(item=>!isDone(item)&&item.action==="coaching");
+      const otherPending=items.filter(item=>!isDone(item)&&!["quality","coaching"].includes(item.action));
+      const lane=(name,key,list)=>'<section class="lane cc-task-lane cc-lane-'+key+'"><div class="lanehead">'+name+'<span>'+list.length+'</span></div>'+
+        (list.length?list.map(item=>taskCard(item,state,false)).join(""):'<div class="cc-task-empty">Rien à faire ici pour le moment.</div>')+'</section>';
+      const pendingOther=otherPending.length?'<section class="cc-report-focus"><div class="cc-report-title"><span>Rapports &amp; autres tâches</span><span>'+otherPending.length+'</span></div>'+otherPending.map(item=>taskCard(item,state,false)).join("")+'</section>':"";
+      const completedMarkup=done.length
+        ?'<details class="cc-completed-list"><summary>Voir les tâches terminées <span>'+done.length+'</span></summary>'+done.map(item=>taskCard(item,state,true)).join("")+'</details>'
+        :'<div class="cc-task-empty">Les tâches terminées apparaîtront ici.</div>';
+      board.innerHTML=pendingOther+lane("Écoute","listen",listens)+lane("Coaching","coaching",coachings)+
+        '<section class="lane cc-task-lane cc-lane-done"><div class="lanehead">Terminé<span>'+done.length+'</span></div>'+completedMarkup+'</section>';
+    }
+    window.ensureMandatoryTasks=generateDailyTasks;
+    window.renderTasks=renderPipeline;
+    window.ccGenerateDailyRoleTasks=generateDailyTasks;
+    window.ccVisibleTasksForRole=visibleTaskList;
+
+    const originalRenderDash=window.renderDash;
+    if(typeof originalRenderDash==="function"){
+      window.renderDash=function(...args){
+        const state=window.crmGetLocalState?.(),items=state?.tasks;
+        if(!Array.isArray(items))return originalRenderDash.apply(this,args);
+        const all=items.slice(),visible=visibleTaskList(all);
         items.splice(0,items.length,...visible);
-        try { return originalRenderTasks.apply(this,args); }
-        finally { items.splice(0,items.length,...all); }
+        try{return originalRenderDash.apply(this,args)}
+        finally{items.splice(0,items.length,...all)}
       };
     }
-    const originalRenderDash = window.renderDash;
-    if (typeof originalRenderDash === "function") {
-      window.renderDash = function(...args) {
-        const state = window.crmGetLocalState?.(), items = state?.tasks;
-        if (!Array.isArray(items)) return originalRenderDash.apply(this,args);
-        const all = items.slice(), visible = visibleTaskList(all);
-        items.splice(0,items.length,...visible);
-        try { return originalRenderDash.apply(this,args); }
-        finally { items.splice(0,items.length,...all); }
-      };
-    }
-    const originalRenderHistory = window.renderTaskHistory;
-    if (typeof originalRenderHistory === "function") {
-      window.renderTaskHistory = function(...args) {
-        if (!shouldSeeTasks()) {
-          const host = $("taskHistoryList");
-          if (host) host.innerHTML = '<div class="empty">Aucune tâche attribuée à ce rôle.</div>';
-          const count = $("taskHistoryCount"); if (count) count.textContent = "0 action";
+    const originalRenderHistory=window.renderTaskHistory;
+    if(typeof originalRenderHistory==="function"){
+      window.renderTaskHistory=function(...args){
+        if(!shouldSeeTasks()){
+          const host=$("taskHistoryList");
+          if(host)host.innerHTML='<div class="empty">Aucune tâche attribuée à ce rôle.</div>';
+          const count=$("taskHistoryCount");if(count)count.textContent="0 action";
           return;
         }
         return originalRenderHistory.apply(this,args);
       };
     }
-    const originalOpenTask = window.openTaskAction;
-    if (typeof originalOpenTask === "function") {
-      window.openTaskAction = function(id,...args) {
-        const state = window.crmGetLocalState?.(), task = state?.tasks?.find(item => String(item.id) === String(id));
-        if (!shouldSeeTasks() || (task && task.assignedRole !== "chef_plateau")) return;
-        const result = originalOpenTask.call(this,id,...args);
-        if (task && ["quality","coaching"].includes(task.action)) window.setTimeout(() => addAbsenceOption(task),0);
-        return result;
+    const originalOpenTask=window.openTaskAction;
+    if(typeof originalOpenTask==="function"){
+      window.openTaskAction=function(id,...args){
+        const state=window.crmGetLocalState?.(),task=state?.tasks?.find(item=>String(item.id)===String(id));
+        if(!shouldSeeTasks()||(task&&task.assignedRole!=="chef_plateau"))return;
+        return originalOpenTask.call(this,id,...args);
       };
     }
-    function addAbsenceOption(task) {
-      const form = $("modalForm"), body = $("modalBody"), footer = form?.querySelector(".modalfoot");
-      if (!form || !body || !footer || footer.querySelector("[data-task-absence-toggle]")) return;
-      const panel = document.createElement("div");
-      panel.className = "field full"; panel.hidden = true;
-      panel.innerHTML = '<label>Collaborateur absent · motif obligatoire</label><textarea rows="3" placeholder="Indique brièvement pourquoi l’écoute ou le coaching n’a pas pu avoir lieu."></textarea><button type="button" class="btn primary" data-task-absence-confirm>Confirmer l’absence et clôturer la tâche</button>';
-      body.appendChild(panel);
-      const toggle = document.createElement("button");
-      toggle.type = "button"; toggle.className = "btn"; toggle.textContent = "Collaborateur absent";
-      toggle.setAttribute("data-task-absence-toggle","");
-      footer.insertBefore(toggle,footer.firstChild);
-      toggle.addEventListener("click",() => { panel.hidden = !panel.hidden; if (!panel.hidden) panel.querySelector("textarea")?.focus(); });
-      panel.querySelector("[data-task-absence-confirm]")?.addEventListener("click",() => {
-        const reason = String(panel.querySelector("textarea")?.value||"").trim();
-        if (!reason) { window.crmToast?.("Indique un motif pour enregistrer l’absence."); return; }
-        const state = window.crmGetLocalState?.(), employee = state?.employees?.find(item => String(item.id) === String(task.employeeId));
-        const actor = String(window.crmCurrentProfile?.()?.display_name || window.crmCurrentProfile?.()?.username || "Chef de plateau");
-        const today = taskBoardDate(), summary = "Collaborateur absent — "+reason;
-        if (typeof window.finishTask !== "function") { window.crmToast?.("Impossible de clôturer la tâche pour le moment."); return; }
-        window.finishTask(task.id,{date:today,owner:actor,employee:employee?.name||task.employee||"",summary},"Collaborateur absent");
-        const refreshed = window.crmGetLocalState?.();
-        const completed = refreshed?.tasks?.find(item => String(item.id) === String(task.id));
-        if (completed) { completed.assignedRole="chef_plateau"; completed.completedOn=today; completed.absenceReason=reason; }
-        const entry = (refreshed?.taskHistory||[]).find(item => String(item.taskId) === String(task.id));
-        if (entry) { entry.completedOn=today; entry.source=task.action==="quality"?"Qualité":"Coaching"; entry.summary=summary; entry.details={...(entry.details||{}),absenceReason:reason}; }
-        if (completed) localStorage.setItem("capsule_tasks",JSON.stringify(refreshed.tasks));
-        if (entry) localStorage.setItem("capsule_taskHistory",JSON.stringify(refreshed.taskHistory));
-        window.closeModal?.(); window.ensureMandatoryTasks?.();
-        window.renderTasks?.(); window.renderTaskHistory?.(); window.renderDash?.();
-        window.crmToast?.("Absence enregistrée. La tâche apparaît comme terminée avec son motif.");
-      });
-    }
-    const originalEnsure = window.ensureMandatoryTasks;
-    window.ensureMandatoryTasks = function() { generateDailyTasks(); };
-    window.ccGenerateDailyRoleTasks = generateDailyTasks;
-    window.ccVisibleTasksForRole = visibleTaskList;
   }
-
-  function setupTaskBoardEnhancements() {
+function setupTaskBoardEnhancements() {
     const styleId="ccTaskBoardEnhancements";
-    if(!$(styleId)){const style=document.createElement("style");style.id=styleId;style.textContent="#taskBoard.board{grid-template-columns:repeat(2,minmax(0,1fr))!important}#taskBoard .task-progress-btn{display:none!important}#taskBoard .lane.cc-hidden-progress{display:none!important}@media(max-width:760px){#taskBoard.board{grid-template-columns:1fr!important}}";document.head.appendChild(style)}
+    if(!$(styleId)){const style=document.createElement("style");style.id=styleId;style.textContent="#taskBoard.board{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:14px!important;align-items:start}#taskBoard .task-progress-btn{display:none!important}#taskBoard .lane.cc-hidden-progress{display:none!important}#taskBoard .cc-task-lane{min-width:0;padding:14px!important;border:1px solid var(--line)!important;border-radius:16px!important;background:linear-gradient(165deg,rgba(255,255,255,.035),rgba(255,255,255,.008))!important}#taskBoard .lanehead{font-size:14px!important;letter-spacing:.01em!important;text-transform:none!important;margin-bottom:12px!important}#taskBoard .lanehead span{background:rgba(255,255,255,.09);border-radius:999px;padding:4px 9px;font-size:11px!important}#taskBoard .cc-report-focus{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:rgba(236,190,198,.055)}#taskBoard .cc-report-title{display:flex;align-items:center;gap:8px;font-weight:800;color:var(--text);margin-right:4px}#taskBoard .cc-report-title span+span{font-size:11px;color:var(--muted)}#taskBoard .cc-pipeline-card{position:relative;overflow:hidden;margin:0 0 10px!important;padding:13px!important;border:1px solid var(--line)!important;border-left:4px solid rgba(236,190,198,.62)!important;border-radius:13px!important;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018))!important;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}#taskBoard .cc-pipeline-card:hover{transform:translateY(-2px);box-shadow:0 9px 24px rgba(0,0,0,.18)}#taskBoard .cc-pipeline-card.cc-stage-autonomie{border-left-color:#4aa678!important;background:linear-gradient(120deg,rgba(74,166,120,.16),rgba(74,166,120,.035) 76%)!important}#taskBoard .cc-pipeline-card.cc-stage-debutant{border-left-color:#e49d4c!important;background:linear-gradient(120deg,rgba(228,157,76,.18),rgba(228,157,76,.04) 76%)!important}#taskBoard .cc-pipeline-card.cc-pipeline-complete{border-left-color:#8eaa98!important;opacity:.88}#taskBoard .cc-pipeline-meta{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:10px}#taskBoard .cc-pipeline-kind{font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--sakura,#f0c5ce)}#taskBoard .cc-stage-badge{padding:4px 8px;border:1px solid;border-radius:999px;font-size:10px;font-weight:800}#taskBoard .cc-stage-badge-autonomie{background:#214b3c;color:#a8efc6;border-color:#4ba879}#taskBoard .cc-stage-badge-debutant{background:#513b25;color:#ffd28c;border-color:#c98b42}#taskBoard .cc-pipeline-name{font-size:15px;font-weight:800;line-height:1.35;color:var(--text);overflow-wrap:anywhere}#taskBoard .cc-pipeline-desc{margin:7px 0 12px!important;color:var(--muted);font-size:12px!important;line-height:1.5}#taskBoard .cc-pipeline-foot{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:10px;color:var(--muted)}#taskBoard .cc-pipeline-cta{font-weight:800;color:var(--sakura,#f0c5ce)}#taskBoard .cc-task-empty{padding:14px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:12px}#taskBoard .cc-completed-list{width:100%}#taskBoard .cc-completed-list summary{cursor:pointer;padding:10px;color:var(--muted);font-size:12px}#taskBoard .cc-completed-list summary span{margin-left:8px;padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.08)}@media(max-width:1000px){#taskBoard.board{grid-template-columns:repeat(2,minmax(0,1fr))!important}#taskBoard .cc-lane-done{grid-column:1/-1}}@media(max-width:680px){#taskBoard.board{grid-template-columns:1fr!important}#taskBoard .cc-lane-done{grid-column:auto}#taskBoard .cc-report-focus{grid-column:auto}}";document.head.appendChild(style)}
     const paint=()=>{
       const board=$("taskBoard");if(!board)return;
       board.querySelectorAll(".lane").forEach(lane=>{
@@ -1205,24 +1178,42 @@
     if(typeof window.syncControlTaskAfterRecord==="function"&&!window.ccDailyTaskCompletionWrapped){
       const recordTask=window.syncControlTaskAfterRecord;
       window.syncControlTaskAfterRecord=function(taskId,kind,record){
-        const result=recordTask.apply(this,arguments);
-        window.setTimeout(()=>{
-          try{
-            const raw=localStorage.getItem("capsule_tasks"),tasks=raw?JSON.parse(raw):[];
-            const task=tasks.find(item=>String(item.id)===String(taskId));
-            if(!task||["Terminée","Terminé","Effectué"].includes(String(task.status||"")))return;
-            const today=taskBoardDate(),now=new Date().toISOString();
-            task.status="Terminée";task.completedAt=now;task.completedOn=today;task.completedBy=String(record?.evaluator||record?.coach||record?.owner||"Équipe");
-            const taskRaw=localStorage.getItem("capsule_taskHistory"),history=taskRaw?JSON.parse(taskRaw):[];
-            if(!history.some(item=>String(item.taskId)===String(taskId)&&String(item.completedOn||"").slice(0,10)===today)){
-              history.unshift({id:Date.now(),taskId:task.id,title:task.title,owner:task.completedBy,source:task.source|| (kind==="quality"?"Qualité":"Coaching"),completedAt:now,completedOn:today,details:record||{},summary:String(record?.notes||record?.result||record?.objective||"Enregistrement terminé.")});
-              localStorage.setItem("capsule_taskHistory",JSON.stringify(history));
-            }
-            localStorage.setItem("capsule_tasks",JSON.stringify(tasks));
-            window.renderTasks?.();window.renderTaskHistory?.();window.renderDash?.();
-          }catch(error){console.warn("CRM daily task completion:",error)}
-        },0);
-        return result;
+        const state=window.crmGetLocalState?.(),tasks=state?.tasks||[];
+        const task=tasks.find(item=>String(item.id)===String(taskId));
+        const sessionId=/^auto:listen:\\d+:\\d{4}-\\d{2}-\\d{2}:\\d+$/.test(String(taskId));
+        if(!task||!sessionId)return recordTask.apply(this,arguments);
+        const today=taskBoardDate(),now=new Date().toISOString();
+        if(kind==="quality"){
+          const employee=(state.employees||[]).find(item=>String(item.id)===String(task.employeeId));
+          task.action="coaching";task.status="À faire";task.assignedRole="chef_plateau";
+          task.title="Coaching · "+String(record?.employee||employee?.name||task.employee||"Collaborateur");
+          task.desc="Écoute enregistrée · coaching à effectuer aujourd’hui.";
+          task.listenCompletedAt=now;task.completedOn="";task.completedAt="";task.completedBy="";
+          const history=state.taskHistory||[];
+          for(let i=history.length-1;i>=0;i--)if(String(history[i].taskId)===String(taskId))history.splice(i,1);
+          localStorage.setItem("capsule_tasks",JSON.stringify(tasks));
+          if(Array.isArray(history))localStorage.setItem("capsule_taskHistory",JSON.stringify(history));
+          window.renderTasks?.();window.renderTaskHistory?.();window.renderDash?.();
+          return;
+        }
+        if(kind==="coaching"){
+          const employee=(state.employees||[]).find(item=>String(item.id)===String(task.employeeId));
+          const qualityRecord=(state.qualityHistory||[]).find(item=>item.employee===record?.employee&&String(item.date||"").slice(0,10)===String(record?.date||today).slice(0,10));
+          task.action="coaching";task.status="Terminée";task.assignedRole="chef_plateau";
+          task.completedAt=now;task.completedOn=today;task.completedBy=String(record?.coach||record?.owner||"Chef de plateau");
+          task.title="Séance terminée · "+String(record?.employee||employee?.name||task.employee||"Collaborateur");
+          task.summary="Écoute et coaching enregistrés.";task.completionType="session";
+          const history=state.taskHistory||[];
+          let entry=history.find(item=>String(item.taskId)===String(taskId));
+          const payload={quality:qualityRecord||null,coaching:record||null};
+          if(!entry){entry={id:Date.now(),taskId:task.id,title:task.title,owner:task.completedBy,source:"Écoute & Coaching",completedAt:now,completedOn:today,details:payload,summary:task.summary};history.unshift(entry)}
+          else{entry.title=task.title;entry.owner=task.completedBy;entry.source="Écoute & Coaching";entry.completedAt=now;entry.completedOn=today;entry.details=payload;entry.summary=task.summary}
+          localStorage.setItem("capsule_tasks",JSON.stringify(tasks));
+          localStorage.setItem("capsule_taskHistory",JSON.stringify(history));
+          window.renderTasks?.();window.renderTaskHistory?.();window.renderDash?.();
+          return;
+        }
+        return recordTask.apply(this,arguments);
       };
       window.ccDailyTaskCompletionWrapped=true;
     }
