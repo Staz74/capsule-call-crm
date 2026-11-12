@@ -94,11 +94,43 @@
     const prior = queues.get(key) || Promise.resolve();
     const next = prior.catch(() => {}).then(async () => {
       if (!currentUser || !cloudReady) return;
+      const previousPayload = cloudBase.get(key);
       const { error } = await client.rpc("crm_merge_state", {
-        p_state_key: key, p_base: cloudBase.get(key) ?? null, p_next: payload
+        p_state_key: key, p_base: previousPayload ?? null, p_next: payload
       });
       if (error) throw error;
       cloudBase.set(key, payload);
+      let identitySyncWarning = "";
+      if (key === "employees" && ["admin", "rh", "chef_plateau"].includes(currentProfile?.role) &&
+          Array.isArray(previousPayload) && Array.isArray(payload)) {
+        const previousById = new Map(previousPayload.map(employee => [String(employee?.id), employee]));
+        const renamed = payload.filter(employee => {
+          const previous = previousById.get(String(employee?.id));
+          return previous && String(previous.name || "").trim() !== String(employee?.name || "").trim();
+        });
+        for (const employee of renamed) {
+          try {
+            const { data: identity, error: identityError } = await client.functions.invoke("manage-accounts", {
+              body: { action: "sync-caller-identity", employeeId: Number(employee.id) }
+            });
+            if (identityError || identity?.error) throw identityError || new Error(identity.error);
+            if (identity?.updated) {
+              accountCache = accountCache.map(account => String(account.employee_id) === String(employee.id)
+                ? { ...account, username: identity.username, display_name: identity.displayName } : account);
+              if (identity.usernameChanged && typeof window.toast === "function") {
+                window.toast("Identifiant Mon Salaire mis à jour : @" + identity.username + ". Le mot de passe reste inchangé ; communique ce nouvel identifiant au collaborateur.");
+              }
+              if ($("settingsSalaryAccessView") && !$("settingsSalaryAccessView").hidden) renderSalaryAccessRegistry();
+            }
+          } catch (identityError) {
+            identitySyncWarning = "Accès Mon Salaire à vérifier";
+            console.error("Mise à jour de l’identité Mon Salaire:", employee.id, identityError);
+            if (typeof window.toast === "function") {
+              window.toast("Fiche enregistrée, mais la mise à jour de l’accès Mon Salaire a échoué. Réessaie après vérification.");
+            }
+          }
+        }
+      }
       if (key === "archivedEmployees" && currentProfile && ["admin", "rh", "chef_plateau"].includes(currentProfile.role)) {
         const { data: archiveResult, error: archiveError } = await client.functions.invoke("manage-accounts", { body: { action:"deactivate-archived-callers" } });
         if (archiveError || archiveResult?.error) throw archiveError || new Error(archiveResult.error);
@@ -225,6 +257,50 @@
     setSync("Mise à jour des données…");
     location.reload();
     return true;
+  }
+
+  function setupModuleBrowserHistory() {
+    const rawGo = window.go || window.crmGo;
+    const sessionKey = String(currentUser?.id || "");
+    if (typeof rawGo !== "function" || !sessionKey || window.ccModuleHistorySession === sessionKey) return;
+    window.ccModuleHistorySession = sessionKey;
+    let handlingPop = false;
+    const activePage = () => document.querySelector(".screen.active")?.id.replace("screen-", "") || "";
+    const wrappedGo = function(page, ...args) {
+      const before = activePage();
+      const result = rawGo.call(this, page, ...args);
+      const after = activePage();
+      if (!handlingPop && after && after !== before) {
+        try { history.pushState({ ccCrmPage: after, ccCrmSession: sessionKey }, "", location.href); } catch {}
+      }
+      return result;
+    };
+    window.go = wrappedGo;
+    window.crmGo = wrappedGo;
+    const current = activePage();
+    if (!current) return;
+    const state = { ccCrmPage: current, ccCrmSession: sessionKey };
+    try {
+      history.replaceState(state, "", location.href);
+      history.pushState({ ...state, ccCrmGuard: true }, "", location.href);
+    } catch {}
+    window.addEventListener("popstate", event => {
+      const now = activePage();
+      if (!currentUser || String(currentUser.id) !== sessionKey) return;
+      const route = event.state?.ccCrmPage;
+      if (route && event.state?.ccCrmSession === sessionKey) {
+        const target = window.crmCanPage && !window.crmCanPage(route)
+          ? window.crmFirstAllowedPage?.() || "dashboard" : route;
+        if (target && target !== now) {
+          handlingPop = true;
+          try { rawGo.call(window, target); } finally { handlingPop = false; }
+        }
+        return;
+      }
+      if (now) {
+        try { history.pushState({ ccCrmPage: now, ccCrmSession: sessionKey }, "", location.href); } catch {}
+      }
+    });
   }
 
   function applyPermissions(role) {
@@ -1081,6 +1157,7 @@
       catch (archiveError) { console.warn("Archived salary access sync:", archiveError); }
     }
     applyPermissions(profile.role);
+    setupModuleBrowserHistory();
     setupSalaryAccessRolePermissions();
     setupSalaryAccessSettingsRouting();
     if(profile.role==="admin"||salaryAccessRoleAllowed(profile.role))renderSalaryAccessRegistry();
