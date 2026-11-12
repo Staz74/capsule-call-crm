@@ -6,6 +6,12 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const userPattern = /^[a-z0-9][a-z0-9._-]{2,31}$/;
 const loginEmail = (username: string) => `${username}@login.capsule-call.invalid`;
 const roles = new Set(["rh", "chef_plateau", "directeur_operationnel", "imperator", "caller"]);
+function employeeUsername(name: string, employeeId: number) {
+  const slug = String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "");
+  const base = (slug.length >= 3 ? slug : "caller-" + employeeId).slice(0, 32).replace(/[._-]+$/g, "") || "caller-" + employeeId;
+  return base;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -58,6 +64,51 @@ Deno.serve(async (req: Request) => {
         throw updateError;
       }
       return json({ updated: true, profile: updated });
+    }
+    if (body.action === "sync-caller-identity") {
+      if (!["admin", "rh", "chef_plateau"].includes(profile.role)) {
+        return json({ error: "Action réservée aux responsables autorisés." }, 403);
+      }
+      const employeeId = Number(body.employeeId);
+      if (!Number.isSafeInteger(employeeId) || employeeId <= 0) return json({ error: "Fiche collaborateur invalide." }, 400);
+      const { data: employeeState, error: employeeError } = await admin.from("crm_state").select("payload").eq("state_key", "employees").maybeSingle();
+      if (employeeError) throw employeeError;
+      const employee = (Array.isArray(employeeState?.payload) ? employeeState.payload : [])
+        .find((item: any) => String(item?.id) === String(employeeId));
+      if (!employee) return json({ error: "Fiche collaborateur introuvable." }, 404);
+      const displayName = String(employee.name || "").trim();
+      if (displayName.length < 2 || displayName.length > 100) return json({ error: "Nom de collaborateur invalide." }, 400);
+      const { data: account, error: accountError } = await admin.from("crm_profiles")
+        .select("id,username,display_name,employee_id").eq("role", "caller").eq("employee_id", employeeId).maybeSingle();
+      if (accountError) throw accountError;
+      if (!account) return json({ updated: false, reason: "no_salary_account" });
+      const { data: accounts, error: accountsError } = await admin.from("crm_profiles").select("id,username").eq("role", "caller");
+      if (accountsError) throw accountsError;
+      const base = employeeUsername(displayName, employeeId);
+      let username = base, suffix = 2;
+      const taken = (candidate: string) => (accounts || []).some((item: any) => item.id !== account.id && String(item.username).toLowerCase() === candidate);
+      while (taken(username) && suffix < 10000) {
+        const ending = String(suffix++);
+        username = base.slice(0, 32 - ending.length).replace(/[._-]+$/g, "") + ending;
+      }
+      if (!userPattern.test(username)) return json({ error: "Impossible de créer un identifiant Mon Salaire valide à partir de ce nom." }, 400);
+      const identityChanged = account.username !== username || account.display_name !== displayName;
+      if (!identityChanged) return json({ updated: false, username, displayName });
+      const { data: authAccount, error: authGetError } = await admin.auth.admin.getUserById(account.id);
+      if (authGetError) throw authGetError;
+      const previousEmail = authAccount.user.email || "";
+      const nextEmail = loginEmail(username);
+      if (previousEmail !== nextEmail) {
+        const { error: authUpdateError } = await admin.auth.admin.updateUserById(account.id, { email: nextEmail, email_confirm: true });
+        if (authUpdateError) return json({ error: "L’identifiant Mon Salaire calculé est déjà utilisé ou ne peut pas être appliqué." }, 409);
+      }
+      const { error: profileUpdateError } = await admin.from("crm_profiles")
+        .update({ username, display_name: displayName, updated_at: new Date().toISOString() }).eq("id", account.id);
+      if (profileUpdateError) {
+        if (previousEmail && previousEmail !== nextEmail) await admin.auth.admin.updateUserById(account.id, { email: previousEmail, email_confirm: true });
+        throw profileUpdateError;
+      }
+      return json({ updated: true, employeeId, username, displayName, usernameChanged: account.username !== username });
     }
     if (body.action === "deactivate-archived-callers") {
       if (!["admin", "rh", "chef_plateau"].includes(profile.role) || profile.role !== user.app_metadata?.role) {
