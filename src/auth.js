@@ -319,7 +319,7 @@
       admin: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","synthesis","documents","control","settings"],
       rh: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","documents"],
       directeur_operationnel:["synthesis"],
-      imperator:["synthesis"],
+      imperator:["synthesis","tasks"],
       caller:["salary"],
       chef_plateau: ["dashboard","employees","profile","onboarding","performance","quality","tasks","reports"]
     };
@@ -1010,8 +1010,8 @@
     window.ccRoleTaskRulesInstalled = true;
     const isDone = task => ["Terminée","Terminé","Effectué","Done"].includes(String(task?.status || ""));
     const taskRole = () => String(window.crmCurrentRole?.() || "");
-    const shouldSeeTasks = () => ["admin","chef_plateau"].includes(taskRole());
-    const visibleTaskList = items => taskRole() === "admin"
+    const shouldSeeTasks = () => ["admin","chef_plateau","imperator"].includes(taskRole());
+    const visibleTaskList = items => ["admin","imperator"].includes(taskRole())
       ? items
       : taskRole() === "chef_plateau"
         ? items.filter(item => item.assignedRole === "chef_plateau")
@@ -1019,6 +1019,7 @@
     const dayDefaults = [1,2,3,4,5];
 
     function generateDailyTasks() {
+      if (!["admin","chef_plateau"].includes(taskRole())) return;
       if (window.crmCanPage && !["tasks","quality","reports","control","employees","onboarding"].some(page => window.crmCanPage(page))) return;
       window.pruneCompletedTasks?.();
       const state = window.crmGetLocalState?.();
@@ -1144,13 +1145,14 @@
       const instruction=completed?(session?"Écoute + coaching terminés":"Tâche terminée"):task.action==="quality"?"Écoute à faire":task.action==="coaching"?"Coaching à faire":"À faire";
       const date=taskDateLabel(completed?(task.completedOn||task.due):(task.due||task.createdAt));
       const klass=stage?" cc-stage-"+stage:" cc-stage-neutral";
-      const roleAttrs=completed?"":" data-task-open=\""+escapeHtml(String(task.id))+"\" tabindex=\"0\" role=\"button\" aria-label=\"Ouvrir les détails : "+escapeHtml(primary)+"\"";
+      const canComplete=taskRole()==="chef_plateau";
+      const roleAttrs=completed||!canComplete?"":" data-task-open=\""+escapeHtml(String(task.id))+"\" tabindex=\"0\" role=\"button\" aria-label=\"Ouvrir les détails : "+escapeHtml(primary)+"\"";
       return '<article class="task cc-pipeline-card'+klass+(completed?' cc-pipeline-complete':' cc-pipeline-open')+'"'+roleAttrs+'>'+
         '<div class="cc-pipeline-meta"><span class="cc-pipeline-kind">'+(completed?'✓ Terminé':escapeHtml(kind))+'</span>'+
         (stageLabel?'<span class="cc-stage-badge cc-stage-badge-'+stage+'">'+escapeHtml(stageLabel)+'</span>':'')+'</div>'+
         '<div class="cc-pipeline-name">'+escapeHtml(primary)+'</div>'+
         '<div class="cc-pipeline-foot"><span class="cc-pipeline-instruction">'+escapeHtml(instruction)+'<small>'+escapeHtml(date)+'</small></span>'+
-        (!completed?'<span class="cc-pipeline-cta">Ouvrir les détails →</span>':'')+'</div></article>';
+        (!completed&&canComplete?'<span class="cc-pipeline-cta">Ouvrir les détails →</span>':!completed?'<span class="cc-pipeline-cta">À traiter par la cheffe de plateau</span>':'')+'</div></article>';
     }
     function renderPipeline(){
       generateDailyTasks();
@@ -1291,7 +1293,7 @@
     if(typeof originalOpenTask==="function"){
       window.openTaskAction=function(id,...args){
         const state=window.crmGetLocalState?.(),task=state?.tasks?.find(item=>String(item.id)===String(id));
-        if(!shouldSeeTasks()||(task&&task.assignedRole!=="chef_plateau"))return;
+        if(taskRole()!=="chef_plateau"||(task&&task.assignedRole!=="chef_plateau"))return;
         return originalOpenTask.call(this,id,...args);
       };
     }
