@@ -898,33 +898,40 @@
     await client.auth.signOut(); currentUser = currentProfile = null; location.reload();
   };
 
-  async function applyRemoteEmployeeRefresh() {
-    const {data,error}=await client.from("crm_state").select("payload,updated_at").eq("state_key","employees").maybeSingle();
-    if(error)throw error;
-    if(!data||!Array.isArray(data.payload))throw new Error("La liste des collaborateurs n’est pas disponible.");
-    const state=window.crmGetLocalState?.(),currentEmployees=state?.employees;
-    if(!Array.isArray(currentEmployees))throw new Error("L’état local des collaborateurs n’est pas disponible.");
-    const employees=normalizeEmployeeStatuses(data.payload);
-    if(JSON.stringify(currentEmployees)!==JSON.stringify(employees)){
-      currentEmployees.splice(0,currentEmployees.length,...employees);
-      storedOriginal.call(localStorage,"capsule_employees",JSON.stringify(employees));
-      cloudBase.set("employees",employees);
-      window.dispatchEvent(new Event("cc:dashboard-data-updated"));
-      window.renderEmployees?.();
-      window.renderOnboarding?.();
-      window.renderDash?.();
-      window.renderTasks?.();
-      window.crmRenderPerformanceModule?.();
-      window.crmRenderSynthesis?.();
+  function applyRemotePayloadToMemory(key,payload){
+    if(key.startsWith("local:")){
+      storedOriginal.call(localStorage,key.slice(6),JSON.stringify(payload));
+      return;
     }
-    liveStateVersions.set("employees",data.updated_at||null);
-    setSync("Synchronisé");
+    const state=window.crmGetLocalState?.();
+    if(!state||!Object.prototype.hasOwnProperty.call(state,key))throw new Error("État CRM local introuvable : "+key);
+    const current=state[key];
+    if(Array.isArray(current)&&Array.isArray(payload))current.splice(0,current.length,...(key==="employees"?normalizeEmployeeStatuses(payload):key==="tasks"?normalizeTaskList(payload,true):payload));
+    else if(current&&typeof current==="object"&&!Array.isArray(current)&&payload&&typeof payload==="object"&&!Array.isArray(payload)){
+      for(const prop of Object.keys(current))delete current[prop];
+      Object.assign(current,payload);
+    }else if(JSON.stringify(current)!==JSON.stringify(payload))throw new Error("Format d’état inattendu : "+key);
+    storedOriginal.call(localStorage,"capsule_"+key,JSON.stringify(state[key]));
+  }
+
+  function renderRemoteStateChanges(keys){
+    const set=new Set(keys);
+    const employees=set.has("employees")||[...set].some(key=>key.startsWith("local:cc_onboarding_steps_")||key==="onboardingHistory");
+    const tasks=set.has("tasks")||set.has("taskHistory")||set.has("qualityHistory")||set.has("coachingHistory")||set.has("controlRules");
+    if(employees){window.renderEmployees?.();window.renderOnboarding?.();window.renderDash?.();window.renderTasks?.();window.crmRenderPerformanceModule?.();window.crmRenderSynthesis?.();}
+    if(tasks){window.renderTasks?.();window.renderTaskHistory?.();window.renderDash?.();}
+    if(set.has("qualityHistory")||set.has("coachingHistory")){window.renderQualityModule?.();window.renderCoachingModule?.();window.renderQualityMetrics?.();window.crmRenderSynthesis?.();}
+    if(set.has("reports")||set.has("meetings"))window.renderReports?.();
+    if(set.has("docs"))window.renderDocs?.();
+    if(set.has("controlRules"))window.renderControlModule?.();
+    if(set.has("appPermissions"))window.crmApplyPermissions?.(currentProfile?.role);
+    window.dispatchEvent(new Event("cc:dashboard-data-updated"));
   }
 
   async function applyRemoteCollaboratorRefresh() {
     if (!liveCollaboratorRefreshPending || !currentUser || !cloudReady) return;
     const refreshKeys=[...liveCollaboratorRefreshKeys];
-    const needsFullRefresh=refreshKeys.length===0||refreshKeys.includes("*")||refreshKeys.some(key=>key!=="employees");
+    const needsFullRefresh=refreshKeys.length===0||refreshKeys.includes("*");
     const modalOpen = $("modalbg")?.classList.contains("open");
     const active = document.activeElement;
     const editingField = active?.matches?.("input,textarea,select,[contenteditable='true']") && active.id !== "globalSearch";
@@ -937,17 +944,26 @@
     liveCollaboratorRefreshKeys.clear();
     try {
       await Promise.allSettled([...queues.values()]);
-      if(!needsFullRefresh&&refreshKeys.includes("employees")){
-        await applyRemoteEmployeeRefresh();
+      if(needsFullRefresh){
+        await syncState();
+        refreshAppStateIfStale();
         return;
       }
-      await syncState();
-      if (!refreshAppStateIfStale()) {
-        window.renderEmployees?.();
-        window.renderOnboarding?.();
-        window.renderDash?.();
-        window.renderTasks?.();
+      const keys=refreshKeys.filter(key=>key&&key!=="kpiRows");
+      if(!keys.length)return;
+      const {data,error}=await client.from("crm_state").select("state_key,payload,updated_at").in("state_key",keys);
+      if(error)throw error;
+      const rows=new Map((data||[]).map(row=>[row.state_key,row]));
+      const applied=[];
+      for(const key of keys){
+        const row=rows.get(key);
+        if(!row)continue;
+        applyRemotePayloadToMemory(key,row.payload);
+        cloudBase.set(key,row.payload);
+        liveStateVersions.set(key,row.updated_at||null);
+        applied.push(key);
       }
+      if(applied.length){renderRemoteStateChanges(applied);setSync("Synchronisé");}
     } catch (error) {
       console.warn("CRM remote refresh:", error);
       for(const key of refreshKeys)liveCollaboratorRefreshKeys.add(key);
@@ -966,7 +982,7 @@
 
   async function pollRemoteCollaboratorChanges() {
     if (!currentUser || !cloudReady) return;
-    const { data, error } = await client.from("crm_state").select("state_key,updated_at").in("state_key",dataKeys);
+    const { data, error } = await client.from("crm_state").select("state_key,updated_at").neq("state_key","kpiRows");
     if (error) {
       if (!liveCollaboratorLogWarned) { console.warn("CRM live state fallback sync:",error); liveCollaboratorLogWarned=true; }
       return;
@@ -976,7 +992,7 @@
     for (const row of data||[]) {
       const version=row?.updated_at||null, key=row?.state_key;
       if (!key) continue;
-      if (!liveStateVersions.has(key)) { liveStateVersions.set(key,version); continue; }
+      if (!liveStateVersions.has(key)) { liveStateVersions.set(key,version); changedKeys.push(key); continue; }
       if (liveStateVersions.get(key)!==version) { liveStateVersions.set(key,version); changedKeys.push(key); }
     }
     changedKeys.forEach(key=>scheduleRemoteStateRefresh(key));
