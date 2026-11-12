@@ -164,6 +164,8 @@
     next.catch((error) => { console.error("CRM cloud delete:", key, error); setSync("Erreur de synchronisation", true); });
   };
 
+  window.crmFlushState = async (key) => { await (queues.get(key) || Promise.resolve()); };
+
   async function syncState() {
     setSync("Synchronisation…");
     const { data, error } = await client.from("crm_state").select("state_key,payload");
