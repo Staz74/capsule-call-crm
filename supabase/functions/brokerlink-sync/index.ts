@@ -60,7 +60,7 @@ Deno.serve(async (request: Request) => {
 
   try {
     const authorization = request.headers.get("Authorization") || "";
-    const token = authorization.replace(/^Bearer\\s+/i, "").trim();
+    const token = authorization.replace(/^Bearer\s+/i, "").trim();
     const cronSecret = request.headers.get("x-brokerlink-sync-secret") || "";
     const projectUrl = Deno.env.get("SUPABASE_URL") || "";
     const publishableKey = getPublishableKey();
