@@ -39,7 +39,7 @@ Deno.serve(async(req:Request)=>{
   if(!profile||!profile.is_active||profile.role!=="caller"||user.app_metadata?.role!=="caller"||!profile.employee_id)return json({error:"Accès réservé au compte collaborateur actif."},403);
   const body=await req.json().catch(()=>({}));
   const month=typeof body.month==="string"&&/^\d{4}-(0[1-9]|1[0-2])$/.test(body.month)?body.month:currentMonth();
-  const monthStart=month+"-01",monthEnd=month+"-31",malusStart=month==="2026-11"?"2026-11-10":monthStart,attendanceKey="local:cc_attendance_"+profile.employee_id;
+  const todayDate=today(),monthStart=month+"-01",monthEnd=month+"-31",malusStart=month==="2026-11"?"2026-11-10":monthStart,attendanceKey="local:cc_attendance_"+profile.employee_id;
   const {data:rows,error:stateError}=await admin.from("crm_state").select("state_key,payload").in("state_key",["employees","kpiRows","controlRules",attendanceKey]);
   if(stateError)throw stateError;
   const state=Object.fromEntries((rows||[]).map((row:any)=>[row.state_key,row.payload]));
@@ -124,7 +124,7 @@ Deno.serve(async(req:Request)=>{
   const maluses:any[]=[];
   let productionMalus=0,missingRdv=0;
   for(const [date,count] of [...perDay.entries()].sort(([a],[b])=>a.localeCompare(b))){
-    if(date<malusStart||absenceDays.has(date))continue;
+    if(date<malusStart||date>=todayDate||absenceDays.has(date))continue;
     if(count<target){
       const amount=rdvAmount(count);productionMalus+=amount;missingRdv+=Math.max(0,target-count);
       maluses.push({date,label:dateLabel(date),kind:"rdv",detail:count+" rendez-vous sur "+target,amount});
@@ -153,7 +153,6 @@ Deno.serve(async(req:Request)=>{
   const openingRank=hasOpeningData?rankFor(openingsTotal):null;
   const nextRank=openingRank?ranks[ranks.indexOf(openingRank)+1]||null:null;
   const remaining=openingRank&&nextRank?Math.max(0,nextRank.min-openingsTotal):null;
-  const todayDate=today();
   const todayRdv=perDay.has(todayDate)?perDay.get(todayDate):null;
   const todayOpenings=opensByDay.get(todayDate)||0;
   const attendancePercent=demoMode?94:state[attendanceKey]?(Math.max(0,Math.round(100-(absences.length/22*100)))):null;
