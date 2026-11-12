@@ -1478,7 +1478,7 @@ function setupTaskBoardEnhancements() {
 
   async function setupLiveCollaboratorSync() {
     if (!currentUser || !cloudReady) return;
-    const { data, error } = await client.from("crm_state").select("state_key,updated_at").in("state_key",dataKeys);
+    const { data, error } = await client.from("crm_state").select("state_key,updated_at").neq("state_key","kpiRows");
     if (error) { console.warn("CRM live state sync setup:",error); }
     else for (const row of data||[]) liveStateVersions.set(row.state_key,row.updated_at||null);
     if (!liveCollaboratorWatcherStarted) {
