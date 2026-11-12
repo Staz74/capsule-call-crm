@@ -986,16 +986,16 @@
       const oldHistory = JSON.stringify(taskHistory);
       const reportKinds = {dailyReport:"Rapport journalier",morning:"Réunion du matin",evening:"Réunion du soir",trainingMeeting:"Réunion formation",urgentMeeting:"Réunion urgence"};
       const reportTitles = {dailyReport:"Valider le rapport journalier",morning:"Préparer la réunion du matin",evening:"Préparer la réunion du soir",trainingMeeting:"Préparer la réunion formation",urgentMeeting:"Préparer la réunion urgence"};
-      const oldWeekly = /^auto:(listen|coach):\\d+:\\d{4}-\\d{2}-\\d{2}$/;
-      const isTodaysOldCoachTask = task => {
-        const match=String(task?.id||"").match(/^auto:coach:\\d+:(\\d{4}-\\d{2}-\\d{2}):\\d+$/);
-        return !!match&&match[1]===today;
+      const isLegacyGeneratedTask = task => {
+        const parts=String(task?.id||"").split(":");
+        if(parts[0]!=="auto"||isDone(task))return false;
+        return parts[1]==="coach" || (parts[1]==="listen"&&parts.length===4);
       };
       const genericPlaceholder = task => {
         const title=String(task?.title||task?.name||"").trim().toLocaleLowerCase("fr");
         return title==="action à réaliser" && /ouvrir le formulaire|enregistrer le compte rendu/i.test(String(task?.desc||""));
       };
-      const retained = tasks.filter(task => !oldWeekly.test(String(task.id)) && !isTodaysOldCoachTask(task) && !genericPlaceholder(task));
+      const retained = tasks.filter(task => !isLegacyGeneratedTask(task) && !genericPlaceholder(task));
       retained.forEach(task => { if (!task.assignedRole) task.assignedRole="chef_plateau"; });
       tasks.splice(0,tasks.length,...retained);
       const findTask = id => tasks.find(task => String(task.id)===String(id));
@@ -1144,6 +1144,59 @@
         finally{items.splice(0,items.length,...all)}
       };
     }
+    function openTaskHistoryDetails(entry,state){
+      const details=entry?.details&&typeof entry.details==="object"?entry.details:{};
+      const parts=String(entry?.taskId||"").split(":");
+      const action=parts[1]||"";
+      const employeeName=String(details.employee||details.quality?.employee||details.coaching?.employee||entry.employee||"").trim();
+      const day=String(details.date||details.quality?.date||details.coaching?.date||(action==="dailyReport"?parts[2]:parts.length>=5?parts[3]:"")||entry.completedOn||String(entry.completedAt||"").slice(0,10)).slice(0,10);
+      const normalize=value=>String(value||"").trim().toLocaleLowerCase("fr");
+      const matchingRecord=rows=>(Array.isArray(rows)?rows:[]).find(row=>(!employeeName||normalize(row.employee)===normalize(employeeName))&&(!day||String(row.date||"").slice(0,10)===day));
+      const fields=[];
+      const addField=(label,value)=>{
+        if(value===undefined||value===null||String(value).trim()==="")return;
+        fields.push('<div class="cc-history-field"><strong>'+escapeHtml(label)+'</strong><p>'+escapeHtml(String(value))+'</p></div>');
+      };
+      if(action==="dailyReport"||/rapport journalier/i.test(String(entry.title||""))){
+        const report=details.issues||details.actions||details.decisions?details:
+          (Array.isArray(state.reports)?state.reports.find(row=>String(row.date||"").slice(0,10)===day&&/rapport journalier/i.test(String(row.kind||""))):null)||details;
+        addField("Résumé",report.summary);
+        addField("Points abordés",report.issues);
+        addField("Actions prévues",report.actions);
+        addField("Décisions",report.decisions);
+      }else if(action==="listen"||details.quality){
+        const record=details.quality||matchingRecord(state.qualityHistory);
+        if(record){addField("Collaborateur",record.employee||employeeName);addField("Score",record.score===undefined?"":String(record.score)+" %");addField("Critère",record.category);addField("Évaluateur",record.evaluator);addField("Notes d’écoute",record.notes);addField("Suite prévue",record.coach)}
+      }else if(action==="coach"||details.coaching){
+        const record=details.coaching||matchingRecord(state.coachingHistory);
+        if(record){addField("Collaborateur",record.employee||employeeName);addField("Coach",record.coach);addField("Thème",record.category);addField("Objectif",record.objective);addField("Compte rendu",record.content);addField("Résultat / prochaine étape",record.result)}
+      }
+      if(!fields.length){
+        for(const [key,value] of Object.entries(details)){
+          if(["date","owner","employee","quality","coaching"].includes(key)||value===null||value===undefined)continue;
+          if(typeof value==="object")continue;
+          addField(key==="summary"?"Compte rendu":key,value);
+        }
+      }
+      if(!fields.length)addField("Compte rendu",entry.summary||"Aucun détail enregistré pour cette action.");
+      let modal=$("ccTaskHistoryDetail");
+      if(!modal){
+        modal=document.createElement("div");modal.id="ccTaskHistoryDetail";
+        modal.style.cssText="position:fixed;inset:0;z-index:10050;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(7,5,6,.78);backdrop-filter:blur(6px)";
+        document.body.appendChild(modal);
+        modal.addEventListener("click",event=>{if(event.target===modal||event.target.closest("[data-close-task-history]")){modal.style.display="none";modal.innerHTML=""}});
+        document.addEventListener("keydown",event=>{if(event.key==="Escape"&&modal.style.display==="flex"){modal.style.display="none";modal.innerHTML=""}});
+      }
+      const heading=String(entry.title||"Action terminée");
+      const meta=[taskDateLabel(day||entry.completedOn||String(entry.completedAt||"").slice(0,10)),String(entry.owner||"").trim()].filter(Boolean).join(" · ");
+      modal.innerHTML='<section role="dialog" aria-modal="true" aria-label="'+escapeHtml(heading)+'" style="width:min(720px,100%);max-height:85vh;overflow:auto;border:1px solid #58464b;border-radius:18px;background:#211c1d;color:#f5e9eb;box-shadow:0 24px 80px #0009;padding:22px">'+
+        '<header style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px"><div><small style="color:#e6b7c0;font-weight:800;letter-spacing:.12em;text-transform:uppercase">Détail de l’action</small><h2 style="margin:7px 0 4px;color:#fff0f2;font-size:23px;line-height:1.25">'+escapeHtml(heading)+'</h2><div style="color:#cbb8bb;font-size:13px">'+escapeHtml(meta)+'</div></div><button type="button" data-close-task-history style="border:1px solid #674d54;border-radius:10px;padding:8px 11px;background:#33282b;color:#f5e9eb;font-weight:700;cursor:pointer">Fermer</button></header>'+
+        '<div style="display:grid;gap:12px;margin-top:20px">'+fields.join("")+'</div></section>';
+      modal.querySelectorAll(".cc-history-field").forEach(field=>{field.style.cssText="padding:13px 14px;border:1px solid #493b3e;border-radius:12px;background:#292223";const p=field.querySelector("p");if(p)p.style.cssText="margin:6px 0 0;color:#eee0e2;white-space:pre-wrap;line-height:1.5"});
+      modal.querySelectorAll(".cc-history-field strong").forEach(label=>label.style.cssText="color:#e9c3ca;font-size:12px");
+      modal.style.display="flex";
+      modal.querySelector("[data-close-task-history]")?.focus();
+    }
     const originalRenderHistory=window.renderTaskHistory;
     if(typeof originalRenderHistory==="function"){
       window.renderTaskHistory=function(...args){
@@ -1153,7 +1206,25 @@
           const count=$("taskHistoryCount");if(count)count.textContent="0 action";
           return;
         }
-        return originalRenderHistory.apply(this,args);
+        const state=window.crmGetLocalState?.(),history=state?.taskHistory;
+        if(!Array.isArray(history))return originalRenderHistory.apply(this,args);
+        const original=history.slice().sort((a,b)=>String(b.completedAt||b.completedOn||"").localeCompare(String(a.completedAt||a.completedOn||"")));
+        const seen=new Set(),unique=[];
+        for(const item of original){const key=String(item.taskId||("entry:"+item.id));if(seen.has(key))continue;seen.add(key);unique.push(item)}
+        history.splice(0,history.length,...unique);
+        let result;
+        try{result=originalRenderHistory.apply(this,args)}
+        finally{history.splice(0,history.length,...original)}
+        const host=$("taskHistoryList");
+        if(host){
+          host.querySelectorAll("tbody tr").forEach((row,index)=>{
+            row.dataset.taskHistoryIndex=String(index);row.tabIndex=0;row.setAttribute("role","button");row.title="Cliquer pour afficher le compte rendu";
+            row.style.cursor="pointer";
+          });
+          host.onclick=event=>{const row=event.target.closest("tr[data-task-history-index]");if(!row)return;const item=unique[Number(row.dataset.taskHistoryIndex)];if(item)openTaskHistoryDetails(item,window.crmGetLocalState?.()||state)};
+          host.onkeydown=event=>{if(event.key!=="Enter"&&event.key!==" ")return;const row=event.target.closest("tr[data-task-history-index]");if(!row)return;event.preventDefault();const item=unique[Number(row.dataset.taskHistoryIndex)];if(item)openTaskHistoryDetails(item,window.crmGetLocalState?.()||state)};
+        }
+        return result;
       };
     }
     const originalOpenTask=window.openTaskAction;
@@ -1176,9 +1247,9 @@ function setupTaskBoardEnhancements() {
         if(/^En cours/i.test(label)){lane.classList.add("cc-hidden-progress");return}
         lane.classList.remove("cc-hidden-progress");
         if(/^Terminées/i.test(label))head.firstChild.textContent="Terminé";
-        lane.querySelectorAll(".task").forEach(card=>{
+        lane.querySelectorAll(".task:not(.cc-pipeline-card)").forEach(card=>{
           const title=String(card.querySelector(".task-topline b")?.textContent||"").trim().toLocaleLowerCase("fr");
-          if(!title||["ouvrir le formulaire","enregistrer le compte rendu"].includes(title))card.remove();
+          if(title&&["ouvrir le formulaire","enregistrer le compte rendu"].includes(title))card.remove();
         });
         const count=head.querySelector("span"),nextCount=String(lane.querySelectorAll(".task").length);if(count&&count.textContent!==nextCount)count.textContent=nextCount;
       });
@@ -1189,7 +1260,8 @@ function setupTaskBoardEnhancements() {
       window.syncControlTaskAfterRecord=function(taskId,kind,record){
         const state=window.crmGetLocalState?.(),tasks=state?.tasks||[];
         const task=tasks.find(item=>String(item.id)===String(taskId));
-        const sessionId=/^auto:listen:\\d+:\\d{4}-\\d{2}-\\d{2}:\\d+$/.test(String(taskId));
+        const taskIdParts=String(taskId).split(":");
+        const sessionId=taskIdParts.length===5&&taskIdParts[0]==="auto"&&taskIdParts[1]==="listen";
         if(!task||!sessionId)return recordTask.apply(this,arguments);
         const today=taskBoardDate(),now=new Date().toISOString();
         if(kind==="quality"){
