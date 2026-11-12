@@ -10,12 +10,13 @@
   function normalizeEmployeeStatuses(input) { return (Array.isArray(input)?input:[]).map(employee=>employee?.status==="Actif"?{...employee,status:"Autonome"}:employee); }
   function taskBoardDate() { return typeof dashboardZurichDate === "function" ? dashboardZurichDate() : new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()); }
   function isPlaceholderTask(task) {
-    const title = String(task?.title || task?.name || "").trim().toLocaleLowerCase("fr").replace(/\s+/g, " ");
+    const rawTitle = String(task?.title || task?.name || "").trim().toLocaleLowerCase("fr");
+    const title = rawTitle.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
     const action = String(task?.action || "").trim();
     const hasLinkedWork = Boolean(action || String(task?.employee || "").trim() || task?.employeeId != null);
-    const genericTitles = ["action à réaliser","tâche","tâches","tâche à faire","tâches à faire","tâche à effectuer","tâches à effectuer","tâche à effectuer aujourd’hui","tâches à effectuer aujourd’hui","à faire","à effectuer","ouvrir le formulaire","enregistrer le compte rendu"];
+    const genericTitles = ["action","actions","action a realiser","tache","taches","tache a faire","taches a faire","tache a effectuer","taches a effectuer","a faire","a effectuer","ouvrir le formulaire","enregistrer le compte rendu"];
     return genericTitles.includes(title) || (!title && !hasLinkedWork) ||
-      (!hasLinkedWork && /^(?:action|tâches?|actions?)\s+(?:à\s+)?(?:faire|effectuer|réaliser)(?:\s+aujourd’hui)?$/.test(title));
+      (!hasLinkedWork && /^(?:action|taches?|actions?)(?: a)? (?:faire|effectuer|realiser)(?: aujourdhui)?(?: [a-z0-9 ]*)?$/.test(title));
   }
   function normalizeTaskList(input, resetOldDone = false) {
     const today = taskBoardDate();
@@ -1121,7 +1122,13 @@
       generateDailyTasks();
       const board=$("taskBoard"),state=window.crmGetLocalState?.();
       if(!board||!state)return;
-      const items=visibleTaskList(Array.isArray(state.tasks)?state.tasks:[]);
+      const storedTasks=Array.isArray(state.tasks)?state.tasks:[];
+      const cleanTasks=normalizeTaskList(storedTasks,false);
+      if(JSON.stringify(cleanTasks)!==JSON.stringify(storedTasks)){
+        storedTasks.splice(0,storedTasks.length,...cleanTasks);
+        localStorage.setItem("capsule_tasks",JSON.stringify(storedTasks));
+      }
+      const items=visibleTaskList(cleanTasks).filter(item=>!isPlaceholderTask(item));
       const done=items.filter(isDone).sort((a,b)=>String(b.completedAt||b.completedOn||"").localeCompare(String(a.completedAt||a.completedOn||"")));
       const firstColumn=items.filter(item=>!isDone(item)&&item.action!=="coaching");
       const coachings=items.filter(item=>!isDone(item)&&item.action==="coaching");
