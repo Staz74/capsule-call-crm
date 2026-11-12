@@ -171,7 +171,8 @@ Deno.serve(async(req:Request)=>{
   const tenureWeeks=startDate?Math.max(0,Math.floor((Date.now()-new Date(startDate+"T12:00:00Z").getTime())/(7*86400000))):null;
   const rdvMalusConfigured=[settings.rdv0,settings.rdv1,settings.rdv2].some(v=>v>0);
   const lateMalusConfigured=[settings.lateGreen,settings.lateOrange,settings.lateRed].some(v=>v>0);
-  const absenceMalusConfigured=[settings.absenceHalf,settings.absenceFull].some(v=>v>0);\n  const rdvBonusConfigured=[settings.rdvBonus4,settings.rdvBonus5,settings.rdvBonus6,settings.rdvBonus7].some(v=>v>0);
+  const absenceMalusConfigured=[settings.absenceHalf,settings.absenceFull].some(v=>v>0);
+  const rdvBonusConfigured=[settings.rdvBonus4,settings.rdvBonus5,settings.rdvBonus6,settings.rdvBonus7].some(v=>v>0);
   return json({
     month,username:profile.username,displayName:profile.display_name,employeeName:employee.name,
     baseSalary,fullMonthBaseSalary,isNovember2026Prorata,salaryAfterMaluses,totalDeductions,totalBonuses,productionMalus,lateMalus,absenceMalus,
