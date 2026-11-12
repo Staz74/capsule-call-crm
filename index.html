@@ -843,16 +843,30 @@ function taskDetailRows(value,prefix=""){
  const label=String(prefix||"Détail").split(" · ").map(part=>labels[part]||part.replace(/([a-z])([A-Z])/g,"$1 $2")).join(" · ");
  return '<div class="task-detail-row"><b>'+esc(label)+'</b><div>'+esc(String(value))+'</div></div>';
 }
+function relatedTaskRecords(h,kind){
+ const employee=String(h.employee||h.details?.employee||"").trim().toLocaleLowerCase("fr");
+ if(!employee)return [];
+ const end=String(h.details?.date||h.completedOn||String(h.completedAt||"").slice(0,10));
+ const endDate=new Date(end+"T12:00:00");if(Number.isNaN(endDate.getTime()))return [];
+ const monday=new Date(endDate);monday.setDate(monday.getDate()-((monday.getDay()+6)%7));const start=monday.toISOString().slice(0,10);
+ const pool=kind==="quality"?qualityHistory:coachingHistory;
+ return pool.filter(record=>String(record.employee||"").trim().toLocaleLowerCase("fr")===employee&&String(record.date||"")>=start&&String(record.date||"")<=end)
+  .sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||Number(b.id||0)-Number(a.id||0));
+}
 function openTaskHistoryDetail(id){
  const h=taskHistory.find(item=>String(item.id)===String(id));if(!h)return;
- const d=h.details||{},quality=d.quality,coaching=d.coaching;
+ const d=h.details||{},quality=d.quality,coaching=d.coaching,title=String(h.title||"").toLocaleLowerCase("fr");
+ const linkedQuality=!quality&&title.includes("écoute")?relatedTaskRecords(h,"quality"):[];
+ const linkedCoaching=!coaching&&title.includes("coaching")?relatedTaskRecords(h,"coaching"):[];
  let body='<div class="task-detail-meta">'+esc(h.source||"Tâche")+' · '+esc(h.owner||"—")+' · '+esc(dfr(h.completedOn||String(h.completedAt||"").slice(0,10)))+'</div>';
  if(h.summary)body+='<div class="panel task-detail-summary"><b>Compte rendu</b><p>'+esc(h.summary)+'</p></div>';
  if(quality)body+='<section class="panel task-detail-section"><h3>Écoute qualité</h3>'+taskDetailRows(quality)+'</section>';
+ else if(linkedQuality.length)body+=linkedQuality.map((record,index)=>'<section class="panel task-detail-section"><h3>Écoute qualité'+(linkedQuality.length>1?' · '+(index+1):'')+'</h3>'+taskDetailRows(record)+'</section>').join("");
  if(coaching)body+='<section class="panel task-detail-section"><h3>Coaching</h3>'+taskDetailRows(coaching)+'</section>';
+ else if(linkedCoaching.length)body+=linkedCoaching.map((record,index)=>'<section class="panel task-detail-section"><h3>Coaching'+(linkedCoaching.length>1?' · '+(index+1):'')+'</h3>'+taskDetailRows(record)+'</section>').join("");
  const rest={...d};delete rest.quality;delete rest.coaching;
  if(Object.keys(rest).length)body+='<section class="panel task-detail-section"><h3>Détails de la tâche</h3>'+taskDetailRows(rest)+'</section>';
- if(!h.summary&&!quality&&!coaching&&!Object.keys(rest).length)body+='<div class="empty">Aucun compte rendu détaillé n’a été enregistré pour cette action.</div>';
+ if(!h.summary&&!quality&&!coaching&&!linkedQuality.length&&!linkedCoaching.length&&!Object.keys(rest).length)body+='<div class="empty">Aucun compte rendu détaillé n’a été enregistré pour cette action.</div>';
  $("#modalTitle").textContent=h.title||"Détail de la tâche";$("#modalBody").innerHTML=body;$("#modalForm").querySelector(".modalfoot").style.display="none";mode="taskDetail";$("#modalbg").classList.add("open");
 }
 function openCompletedTaskDetail(id){
