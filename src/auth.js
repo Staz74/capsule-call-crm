@@ -10,12 +10,12 @@
   function normalizeEmployeeStatuses(input) { return (Array.isArray(input)?input:[]).map(employee=>employee?.status==="Actif"?{...employee,status:"Autonome"}:employee); }
   function taskBoardDate() { return typeof dashboardZurichDate === "function" ? dashboardZurichDate() : new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()); }
   function isPlaceholderTask(task) {
-    const title = String(task?.title || task?.name || "").trim().toLocaleLowerCase("fr").replace(/\\s+/g, " ");
+    const title = String(task?.title || task?.name || "").trim().toLocaleLowerCase("fr").replace(/\s+/g, " ");
     const action = String(task?.action || "").trim();
     const hasLinkedWork = Boolean(action || String(task?.employee || "").trim() || task?.employeeId != null);
     const genericTitles = ["action à réaliser","tâche","tâches","tâche à faire","tâches à faire","tâche à effectuer","tâches à effectuer","tâche à effectuer aujourd’hui","tâches à effectuer aujourd’hui","à faire","à effectuer","ouvrir le formulaire","enregistrer le compte rendu"];
     return genericTitles.includes(title) || (!title && !hasLinkedWork) ||
-      (!hasLinkedWork && /^(?:action|tâches?|actions?)\\s+(?:à\\s+)?(?:faire|effectuer|réaliser)(?:\\s+aujourd’hui)?$/.test(title));
+      (!hasLinkedWork && /^(?:action|tâches?|actions?)\s+(?:à\s+)?(?:faire|effectuer|réaliser)(?:\s+aujourd’hui)?$/.test(title));
   }
   function normalizeTaskList(input, resetOldDone = false) {
     const today = taskBoardDate();
