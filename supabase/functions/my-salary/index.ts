@@ -50,7 +50,7 @@ Deno.serve(async(req:Request)=>{
   const configured={
     base:baseSalary,rdvTarget:target,rdv0:money(rules.rdv0),rdv1:money(rules.rdv1),rdv2:money(rules.rdv2),
     lateGreen:money(rules.lateGreen),lateOrange:money(rules.lateOrange),lateRed:money(rules.lateRed),
-    absenceHalf:money(rules.absenceHalf),absenceFull:money(rules.absenceFull),rdvBonus4:money(rules.rdvBonus4),rdvBonus5:money(rules.rdvBonus5),rdvBonus6:money(rules.rdvBonus6),rdvBonus7:money(rules.rdvBonus7)
+    absenceHalf:money(rules.absenceHalf),absenceFull:money(rules.absenceFull),rdvBonusPerExtra:money(rules.rdvBonusPerExtra,10000)
   };
   const settings={...configured};
   let demoDefaultsApplied=false;
@@ -152,13 +152,11 @@ Deno.serve(async(req:Request)=>{
   const bonuses:any[]=[];
   let totalBonuses=0;
   for(const [date,count] of [...perDay.entries()].sort(([a],[b])=>a.localeCompare(b))){
-    if(date<malusStart||date>monthEnd||absenceDays.has(date))continue;
-    const key=count>=7?"rdvBonus7":count===6?"rdvBonus6":count===5?"rdvBonus5":count===4?"rdvBonus4":null;
-    if(!key)continue;
-    const amount=configured[key as keyof typeof configured] as number;
+    if(date<malusStart||date>monthEnd||absenceDays.has(date)||count<=target)continue;
+    const extraAppointments=count-target,amount=extraAppointments*configured.rdvBonusPerExtra;
     if(amount<=0)continue;
     totalBonuses+=amount;
-    bonuses.push({date,label:dateLabel(date),kind:"rdvBonus",detail:count+" rendez-vous réalisés",amount});
+    bonuses.push({date,label:dateLabel(date),kind:"rdvBonus",detail:count+" rendez-vous réalisés · "+extraAppointments+" au-delà de l’objectif",extraAppointments,amount});
   }
   const salaryAfterMaluses=Math.max(0,baseSalary-totalDeductions+totalBonuses);
   const openingRank=hasOpeningData?rankFor(openingsTotal):null;
@@ -172,7 +170,7 @@ Deno.serve(async(req:Request)=>{
   const rdvMalusConfigured=[settings.rdv0,settings.rdv1,settings.rdv2].some(v=>v>0);
   const lateMalusConfigured=[settings.lateGreen,settings.lateOrange,settings.lateRed].some(v=>v>0);
   const absenceMalusConfigured=[settings.absenceHalf,settings.absenceFull].some(v=>v>0);
-  const rdvBonusConfigured=[settings.rdvBonus4,settings.rdvBonus5,settings.rdvBonus6,settings.rdvBonus7].some(v=>v>0);
+  const rdvBonusConfigured=settings.rdvBonusPerExtra>0;
   return json({
     month,username:profile.username,displayName:profile.display_name,employeeName:employee.name,
     baseSalary,fullMonthBaseSalary,isNovember2026Prorata,salaryAfterMaluses,totalDeductions,totalBonuses,productionMalus,lateMalus,absenceMalus,
