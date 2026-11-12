@@ -4,6 +4,7 @@
   window.crmSupabase = client;
   let currentUser = null, currentProfile = null, cloudReady = false, bootstrapCodeVisible = false, accountCache = [], selectedLoginMode = "staff";
   let liveEmployeeStateVersion = null, liveCollaboratorRefreshPending = false, liveCollaboratorRefreshTimer = null, liveCollaboratorWatcherStarted = false, liveCollaboratorLogWarned = false;
+  const liveCollaboratorRefreshKeys = new Set();
   const liveStateVersions = new Map();
   const queues = new Map(), cloudBase = new Map();
   const $ = (id) => document.getElementById(id);
@@ -897,8 +898,33 @@
     await client.auth.signOut(); currentUser = currentProfile = null; location.reload();
   };
 
+  async function applyRemoteEmployeeRefresh() {
+    const {data,error}=await client.from("crm_state").select("payload,updated_at").eq("state_key","employees").maybeSingle();
+    if(error)throw error;
+    if(!data||!Array.isArray(data.payload))throw new Error("La liste des collaborateurs n’est pas disponible.");
+    const state=window.crmGetLocalState?.(),currentEmployees=state?.employees;
+    if(!Array.isArray(currentEmployees))throw new Error("L’état local des collaborateurs n’est pas disponible.");
+    const employees=normalizeEmployeeStatuses(data.payload);
+    if(JSON.stringify(currentEmployees)!==JSON.stringify(employees)){
+      currentEmployees.splice(0,currentEmployees.length,...employees);
+      storedOriginal.call(localStorage,"capsule_employees",JSON.stringify(employees));
+      cloudBase.set("employees",employees);
+      window.dispatchEvent(new Event("cc:dashboard-data-updated"));
+      window.renderEmployees?.();
+      window.renderOnboarding?.();
+      window.renderDash?.();
+      window.renderTasks?.();
+      window.crmRenderPerformanceModule?.();
+      window.crmRenderSynthesis?.();
+    }
+    liveStateVersions.set("employees",data.updated_at||null);
+    setSync("Synchronisé");
+  }
+
   async function applyRemoteCollaboratorRefresh() {
     if (!liveCollaboratorRefreshPending || !currentUser || !cloudReady) return;
+    const refreshKeys=[...liveCollaboratorRefreshKeys];
+    const needsFullRefresh=refreshKeys.length===0||refreshKeys.includes("*")||refreshKeys.some(key=>key!=="employees");
     const modalOpen = $("modalbg")?.classList.contains("open");
     const active = document.activeElement;
     const editingField = active?.matches?.("input,textarea,select,[contenteditable='true']") && active.id !== "globalSearch";
@@ -908,8 +934,13 @@
       return;
     }
     liveCollaboratorRefreshPending = false;
+    liveCollaboratorRefreshKeys.clear();
     try {
       await Promise.allSettled([...queues.values()]);
+      if(!needsFullRefresh&&refreshKeys.includes("employees")){
+        await applyRemoteEmployeeRefresh();
+        return;
+      }
       await syncState();
       if (!refreshAppStateIfStale()) {
         window.renderEmployees?.();
@@ -919,17 +950,20 @@
       }
     } catch (error) {
       console.warn("CRM remote refresh:", error);
+      for(const key of refreshKeys)liveCollaboratorRefreshKeys.add(key);
       liveCollaboratorRefreshPending = true;
       liveCollaboratorRefreshTimer = window.setTimeout(applyRemoteCollaboratorRefresh, 5000);
     }
   }
 
-  function scheduleRemoteStateRefresh() {
+  function scheduleRemoteStateRefresh(stateKey) {
     if (!currentUser || !cloudReady) return;
     liveCollaboratorRefreshPending=true;
+    liveCollaboratorRefreshKeys.add(stateKey||"*");
     window.clearTimeout(liveCollaboratorRefreshTimer);
     liveCollaboratorRefreshTimer=window.setTimeout(applyRemoteCollaboratorRefresh,250);
   }
+
   async function pollRemoteCollaboratorChanges() {
     if (!currentUser || !cloudReady) return;
     const { data, error } = await client.from("crm_state").select("state_key,updated_at").in("state_key",dataKeys);
@@ -938,14 +972,14 @@
       return;
     }
     liveCollaboratorLogWarned=false;
-    let changed=false;
+    const changedKeys=[];
     for (const row of data||[]) {
       const version=row?.updated_at||null, key=row?.state_key;
       if (!key) continue;
       if (!liveStateVersions.has(key)) { liveStateVersions.set(key,version); continue; }
-      if (liveStateVersions.get(key)!==version) { liveStateVersions.set(key,version); changed=true; }
+      if (liveStateVersions.get(key)!==version) { liveStateVersions.set(key,version); changedKeys.push(key); }
     }
-    if (changed) scheduleRemoteStateRefresh();
+    changedKeys.forEach(key=>scheduleRemoteStateRefresh(key));
   }
 
   function crmLocalData(key, fallback) {
@@ -1431,7 +1465,7 @@ function setupTaskBoardEnhancements() {
     else for (const row of data||[]) liveStateVersions.set(row.state_key,row.updated_at||null);
     if (!liveCollaboratorWatcherStarted) {
       liveCollaboratorWatcherStarted=true;
-      window.setInterval(pollRemoteCollaboratorChanges,15000);
+      window.setInterval(pollRemoteCollaboratorChanges,5000);
       document.addEventListener("focusout",()=>{if(liveCollaboratorRefreshPending){window.clearTimeout(liveCollaboratorRefreshTimer);liveCollaboratorRefreshTimer=window.setTimeout(applyRemoteCollaboratorRefresh,250)}});
       const modal=$("modalbg");
       if(modal)new MutationObserver(()=>{if(liveCollaboratorRefreshPending&&!modal.classList.contains("open")){window.clearTimeout(liveCollaboratorRefreshTimer);liveCollaboratorRefreshTimer=window.setTimeout(applyRemoteCollaboratorRefresh,250)}}).observe(modal,{attributes:true,attributeFilter:["class"]});
@@ -1441,10 +1475,11 @@ function setupTaskBoardEnhancements() {
         .on("postgres_changes",{event:"*",schema:"public",table:"crm_state",filter:"state_key=neq.kpiRows"},payload=>{
           const row=payload?.new||payload?.old;
           if(row?.state_key&&row?.updated_at)liveStateVersions.set(row.state_key,row.updated_at);
-          scheduleRemoteStateRefresh();
+           scheduleRemoteStateRefresh(row?.state_key);
         })
-        .subscribe(status=>{
-          if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")console.warn("CRM Realtime is temporarily unavailable; automatic polling remains active.");
+        .subscribe((status,error)=>{
+          if(status==="SUBSCRIBED")console.info("CRM Realtime is connected.");
+          else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED")console.warn("CRM Realtime status:",status,error||"Automatic polling remains active.");
         });
     }
   }
