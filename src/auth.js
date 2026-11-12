@@ -248,6 +248,7 @@
       cloudBase.set(key, payload);
     }
     cloudReady = true;
+    window.crmReconcileOnboardingProduction?.();
     setSync("Synchronisé");
   }
 
@@ -920,7 +921,7 @@
     const set=new Set(keys);
     const employees=set.has("employees")||[...set].some(key=>key.startsWith("local:cc_onboarding_steps_")||key==="onboardingHistory");
     const tasks=set.has("tasks")||set.has("taskHistory")||set.has("qualityHistory")||set.has("coachingHistory")||set.has("controlRules");
-    if(employees){window.renderEmployees?.();window.renderOnboarding?.();window.renderDash?.();window.renderTasks?.();window.crmRenderPerformanceModule?.();window.crmRenderSynthesis?.();}
+    if(employees){window.crmReconcileOnboardingProduction?.();window.renderEmployees?.();window.renderOnboarding?.();window.renderDash?.();window.renderTasks?.();window.crmRenderPerformanceModule?.();window.crmRenderSynthesis?.();}
     if(tasks){window.renderTasks?.();window.renderTaskHistory?.();window.renderDash?.();}
     if(set.has("qualityHistory")||set.has("coachingHistory")){window.renderQualityModule?.();window.renderCoachingModule?.();window.renderQualityMetrics?.();window.crmRenderSynthesis?.();}
     if(set.has("reports")||set.has("meetings"))window.renderReports?.();
