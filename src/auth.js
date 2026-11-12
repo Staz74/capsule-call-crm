@@ -16,6 +16,7 @@
       const action = String(task?.action || "");
       const lower = title.toLocaleLowerCase("fr");
       if (!title || ["ouvrir le formulaire","enregistrer le compte rendu"].includes(lower)) return false;
+      if (lower === "action à réaliser" && /ouvrir le formulaire|enregistrer le compte rendu/i.test(String(task?.desc || action))) return false;
       if (/days$/i.test(action) && String(task?.source || "").toLocaleLowerCase("fr").includes("contrôle")) return false;
       if (resetOldDone && ["Terminée","Terminé","Effectué","Done"].includes(String(task?.status || ""))) {
         const completed = String(task.completedOn || task.completed_on || task.completedAt || task.completed_at || "").slice(0,10);
@@ -960,6 +961,228 @@
     metric.textContent=done+" / "+target;
     meta.textContent=target?Math.max(0,target-done)+" écoute(s) à réaliser aujourd’hui":"Aucune écoute prévue aujourd’hui";
   }
+
+  function setupRoleTaskRules() {
+    if (window.ccRoleTaskRulesInstalled || typeof window.ensureMandatoryTasks !== "function") return;
+    window.ccRoleTaskRulesInstalled = true;
+    const isDone = (task) => ["Terminée","Terminé","Effectué","Done"].includes(String(task?.status || ""));
+    const dayName = (date) => new Intl.DateTimeFormat("fr-FR",{timeZone:"Europe/Zurich",weekday:"long"}).format(new Date(date+"T12:00:00Z"));
+    const taskRole = () => String(window.crmCurrentRole?.() || "");
+    const shouldSeeTasks = () => ["admin","chef_plateau"].includes(taskRole());
+    const visibleTaskList = (items) => taskRole() === "admin"
+      ? items
+      : taskRole() === "chef_plateau"
+        ? items.filter(item => item.assignedRole === "chef_plateau")
+        : [];
+
+    function generateDailyTasks() {
+      if (window.crmCanPage && !["tasks","quality","reports","control","employees","onboarding"].some(page => window.crmCanPage(page))) return;
+      window.pruneCompletedTasks?.();
+      const state = window.crmGetLocalState?.();
+      if (!state || !Array.isArray(state.tasks)) return;
+      const tasks = state.tasks;
+      const today = taskBoardDate();
+      const weekday = new Date(today+"T12:00:00Z").getUTCDay();
+      const requiredDaysDefault = [1,2,3,4,5];
+      const oldState = JSON.stringify(tasks);
+      const oldHistory = JSON.stringify(state.taskHistory || []);
+      const reportKinds = {
+        dailyReport:"Rapport journalier",morning:"Réunion du matin",evening:"Réunion du soir",
+        trainingMeeting:"Réunion formation",urgentMeeting:"Réunion urgence"
+      };
+      const reportTitles = {
+        dailyReport:"Valider le rapport journalier",morning:"Préparer la réunion du matin",
+        evening:"Préparer la réunion du soir",trainingMeeting:"Préparer la réunion formation",
+        urgentMeeting:"Préparer la réunion urgence"
+      };
+      const legacyWeeklyId = /^auto:(listen|coach):\d+:\d{4}-\d{2}-\d{2}$/;
+      const genericPlaceholder = (task) => {
+        const title = String(task?.title || task?.name || "").trim().toLocaleLowerCase("fr");
+        return title === "action à réaliser" && /ouvrir le formulaire|enregistrer le compte rendu/i.test(String(task?.desc || ""));
+      };
+      const retained = tasks.filter(task => !legacyWeeklyId.test(String(task.id)) && !genericPlaceholder(task));
+      retained.forEach(task => {
+        if (!task.assignedRole) task.assignedRole = "chef_plateau";
+      });
+      tasks.splice(0,tasks.length,...retained);
+      const findTask = id => tasks.find(task => String(task.id) === String(id));
+      const upsert = next => {
+        const previous = findTask(next.id);
+        if (previous) {
+          const done = isDone(previous);
+          Object.assign(previous,next);
+          previous.status = done ? "Terminée" : "À faire";
+          return previous;
+        }
+        tasks.push(next);
+        return next;
+      };
+      const controls = state.controlRules || {};
+      const reports = Array.isArray(state.reports) ? state.reports : [];
+      for (const key of Object.keys(reportKinds)) {
+        if (!controls.required?.[key]) continue;
+        const daysRaw = controls.required?.[key+"Days"];
+        const days = Array.isArray(daysRaw) && daysRaw.length ? daysRaw.map(Number) : requiredDaysDefault;
+        if (!days.includes(weekday)) continue;
+        const id = "auto:"+key+":"+today;
+        const existing = findTask(id);
+        const recorded = reports.find(report => String(report.date||"").slice(0,10) === today && report.kind === reportKinds[key]);
+        if (recorded) {
+          if (existing && !isDone(existing)) {
+            existing.status = "Terminée"; existing.completedOn = today;
+            existing.completedAt = recorded.createdAt || recorded.date+"T12:00:00.000Z";
+            existing.completedBy = recorded.owner || "Chef de plateau";
+            existing.summary = "Compte rendu enregistré.";
+          }
+          continue;
+        }
+        upsert({id,title:reportTitles[key],desc:"Enregistrer le compte rendu obligatoire pour aujourd’hui.",owner:"Chef de plateau",due:today,status:"À faire",priority:"Normale",source:"Contrôle",action:key,assignedRole:"chef_plateau"});
+      }
+
+      const employees = (Array.isArray(state.employees) ? state.employees : [])
+        .filter(employee => !employee.archivedAt && ["Débutant","Autonome"].includes(employee.status));
+      const config = controls.quality || {};
+      const taskHistory = Array.isArray(state.taskHistory) ? state.taskHistory : [];
+      for (const employee of employees) {
+        const stage = employee.status === "Débutant" ? "beginner" : "autonomy";
+        const rule = config[stage] || {};
+        for (const [kind,field,daysField,history] of [
+          ["listen","listens","listenDays",state.qualityHistory],
+          ["coach","coaching","coachingDays",state.coachingHistory]
+        ]) {
+          const weeklyTarget = Math.max(0,Math.floor(Number(rule[field])||0));
+          if (!weeklyTarget) continue;
+          const configuredDays = Array.isArray(rule[daysField]) && rule[daysField].length
+            ? rule[daysField].map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6)
+            : Array.isArray(rule.listenDays) && rule.listenDays.length
+              ? rule.listenDays.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6)
+              : requiredDaysDefault;
+          const days = [...new Set(configuredDays)].sort((a,b) => ((a+6)%7)-((b+6)%7));
+          if (!days.length || !days.includes(weekday)) continue;
+          const weekdayPosition = days.indexOf(weekday);
+          const base = Math.floor(weeklyTarget/days.length), remainder = weeklyTarget%days.length;
+          const dailyTarget = base + (weekdayPosition < remainder ? 1 : 0);
+          if (dailyTarget < 1) continue;
+          const records = (Array.isArray(history) ? history : [])
+            .filter(record => String(record.date||"").slice(0,10) === today &&
+              String(record.employee||"").trim().toLocaleLowerCase("fr") === String(employee.name||"").trim().toLocaleLowerCase("fr"))
+            .sort((a,b) => Number(a.id||0)-Number(b.id||0));
+          const owner = employee.manager || "Chef de plateau";
+          const label = kind === "listen" ? "Finaliser les écoutes qualité" : "Réaliser le coaching";
+          const source = kind === "listen" ? "Qualité" : "Coaching";
+          for (let slot=1;slot<=dailyTarget;slot++) {
+            const id = "auto:"+kind+":"+employee.id+":"+today+":"+slot;
+            const record = records[slot-1] || null;
+            const previous = findTask(id);
+            const title = label+" · "+employee.name+(dailyTarget>1 ? " ("+slot+"/"+dailyTarget+")" : "");
+            const task = upsert({
+              id,title,desc:(kind==="listen"?"Écoute qualité":"Coaching")+" programmé pour aujourd’hui · "+dayName(today)+".",
+              owner,due:today,status:"À faire",priority:"Normale",source:"Contrôle",
+              action:kind==="listen"?"quality":"coaching",assignedRole:"chef_plateau",
+              employee:employee.name,employeeId:employee.id
+            });
+            if (record) {
+              task.status = "Terminée"; task.completedOn = today;
+              task.completedAt = record.createdAt || record.date+"T12:00:00.000Z";
+              task.completedBy = record.evaluator || record.coach || owner;
+              const historyExists = taskHistory.some(item => String(item.taskId) === String(id));
+              if (!historyExists) taskHistory.unshift({
+                id:Date.now()+slot,taskId:id,title,owner:task.completedBy,source,
+                completedAt:task.completedAt,completedOn:today,details:record,
+                summary:String(record.notes||record.result||record.objective||"Enregistrement effectué.")
+              });
+            } else if (previous && isDone(previous)) {
+              task.status = "Terminée";
+            }
+          }
+        }
+      }
+      if (JSON.stringify(tasks) !== oldState) localStorage.setItem("capsule_tasks",JSON.stringify(tasks));
+      if (JSON.stringify(taskHistory) !== oldHistory) localStorage.setItem("capsule_taskHistory",JSON.stringify(taskHistory));
+    }
+
+    const originalRenderTasks = window.renderTasks;
+    if (typeof originalRenderTasks === "function") {
+      window.renderTasks = function(...args) {
+        const state = window.crmGetLocalState?.(), items = state?.tasks;
+        if (!Array.isArray(items)) return originalRenderTasks.apply(this,args);
+        const all = items.slice(), visible = visibleTaskList(all);
+        items.splice(0,items.length,...visible);
+        try { return originalRenderTasks.apply(this,args); }
+        finally { items.splice(0,items.length,...all); }
+      };
+    }
+    const originalRenderDash = window.renderDash;
+    if (typeof originalRenderDash === "function") {
+      window.renderDash = function(...args) {
+        const state = window.crmGetLocalState?.(), items = state?.tasks;
+        if (!Array.isArray(items)) return originalRenderDash.apply(this,args);
+        const all = items.slice(), visible = visibleTaskList(all);
+        items.splice(0,items.length,...visible);
+        try { return originalRenderDash.apply(this,args); }
+        finally { items.splice(0,items.length,...all); }
+      };
+    }
+    const originalRenderHistory = window.renderTaskHistory;
+    if (typeof originalRenderHistory === "function") {
+      window.renderTaskHistory = function(...args) {
+        if (!shouldSeeTasks()) {
+          const host = $("taskHistoryList");
+          if (host) host.innerHTML = '<div class="empty">Aucune tâche attribuée à ce rôle.</div>';
+          const count = $("taskHistoryCount"); if (count) count.textContent = "0 action";
+          return;
+        }
+        return originalRenderHistory.apply(this,args);
+      };
+    }
+    const originalOpenTask = window.openTaskAction;
+    if (typeof originalOpenTask === "function") {
+      window.openTaskAction = function(id,...args) {
+        const state = window.crmGetLocalState?.(), task = state?.tasks?.find(item => String(item.id) === String(id));
+        if (!shouldSeeTasks() || (task && task.assignedRole !== "chef_plateau")) return;
+        const result = originalOpenTask.call(this,id,...args);
+        if (task && ["quality","coaching"].includes(task.action)) window.setTimeout(() => addAbsenceOption(task),0);
+        return result;
+      };
+    }
+    function addAbsenceOption(task) {
+      const form = $("modalForm"), body = $("modalBody"), footer = form?.querySelector(".modalfoot");
+      if (!form || !body || !footer || footer.querySelector("[data-task-absence-toggle]")) return;
+      const panel = document.createElement("div");
+      panel.className = "field full"; panel.hidden = true;
+      panel.innerHTML = '<label>Collaborateur absent · motif obligatoire</label><textarea rows="3" placeholder="Indique brièvement pourquoi l’écoute ou le coaching n’a pas pu avoir lieu."></textarea><button type="button" class="btn primary" data-task-absence-confirm>Confirmer l’absence et clôturer la tâche</button>';
+      body.appendChild(panel);
+      const toggle = document.createElement("button");
+      toggle.type = "button"; toggle.className = "btn"; toggle.textContent = "Collaborateur absent";
+      toggle.setAttribute("data-task-absence-toggle","");
+      footer.insertBefore(toggle,footer.firstChild);
+      toggle.addEventListener("click",() => { panel.hidden = !panel.hidden; if (!panel.hidden) panel.querySelector("textarea")?.focus(); });
+      panel.querySelector("[data-task-absence-confirm]")?.addEventListener("click",() => {
+        const reason = String(panel.querySelector("textarea")?.value||"").trim();
+        if (!reason) { window.crmToast?.("Indique un motif pour enregistrer l’absence."); return; }
+        const state = window.crmGetLocalState?.(), employee = state?.employees?.find(item => String(item.id) === String(task.employeeId));
+        const actor = String(window.crmCurrentProfile?.()?.display_name || window.crmCurrentProfile?.()?.username || "Chef de plateau");
+        const today = taskBoardDate(), summary = "Collaborateur absent — "+reason;
+        if (typeof window.finishTask !== "function") { window.crmToast?.("Impossible de clôturer la tâche pour le moment."); return; }
+        window.finishTask(task.id,{date:today,owner:actor,employee:employee?.name||task.employee||"",summary},"Collaborateur absent");
+        const refreshed = window.crmGetLocalState?.();
+        const completed = refreshed?.tasks?.find(item => String(item.id) === String(task.id));
+        if (completed) { completed.assignedRole="chef_plateau"; completed.completedOn=today; completed.absenceReason=reason; }
+        const entry = (refreshed?.taskHistory||[]).find(item => String(item.taskId) === String(task.id));
+        if (entry) { entry.completedOn=today; entry.source=task.action==="quality"?"Qualité":"Coaching"; entry.summary=summary; entry.details={...(entry.details||{}),absenceReason:reason}; }
+        if (completed) localStorage.setItem("capsule_tasks",JSON.stringify(refreshed.tasks));
+        if (entry) localStorage.setItem("capsule_taskHistory",JSON.stringify(refreshed.taskHistory));
+        window.closeModal?.(); window.ensureMandatoryTasks?.();
+        window.renderTasks?.(); window.renderTaskHistory?.(); window.renderDash?.();
+        window.crmToast?.("Absence enregistrée. La tâche apparaît comme terminée avec son motif.");
+      });
+    }
+    const originalEnsure = window.ensureMandatoryTasks;
+    window.ensureMandatoryTasks = function() { generateDailyTasks(); };
+    window.ccGenerateDailyRoleTasks = generateDailyTasks;
+    window.ccVisibleTasksForRole = visibleTaskList;
+  }
+
   function setupTaskBoardEnhancements() {
     const styleId="ccTaskBoardEnhancements";
     if(!$(styleId)){const style=document.createElement("style");style.id=styleId;style.textContent="#taskBoard.board{grid-template-columns:repeat(2,minmax(0,1fr))!important}#taskBoard .task-progress-btn{display:none!important}#taskBoard .lane.cc-hidden-progress{display:none!important}@media(max-width:760px){#taskBoard.board{grid-template-columns:1fr!important}}";document.head.appendChild(style)}
@@ -1164,6 +1387,9 @@
     setupProfileMonthlyAppointments();
     await setupLiveCollaboratorSync();
     setupTaskBoardEnhancements();
+    setupRoleTaskRules();
+    window.ensureMandatoryTasks?.();
+    window.renderTasks?.(); window.renderTaskHistory?.(); window.renderDash?.();
     setupEmployeeStatusColors();
     setupDailyTaskReset();
     if (window.crmCanPage?.("dashboard")) ensureDashboardOperationalView();
