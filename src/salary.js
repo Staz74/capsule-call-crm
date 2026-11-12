@@ -83,7 +83,7 @@
     return [['RDV aujourd’hui',rdv,'rdv'],['Retards du mois',tardies,'late'],['Assiduité',attendance,'attendance'],['Ouvertures restantes',openings,'openings',openingMeta]].map(([label,value,kind,meta])=>'<article class="salary-stat"><div>'+label+'</div><strong class="serif '+kind+'">'+value+'</strong>'+(meta?'<small>'+esc(meta)+'</small>':'')+'</article>').join("");
   }
   function salaryTip(config){
-    return '<b>Bonus rendez-vous</b><br>4 RDV : +'+amount(config.rdvBonus4)+' · 5 RDV : +'+amount(config.rdvBonus5)+' · 6 RDV : +'+amount(config.rdvBonus6)+' · 7 ou + : +'+amount(config.rdvBonus7)+'<br><b>Malus rendez-vous · objectif '+config.rdvTarget+' / jour</b><br>2 RDV : −'+amount(config.rdv2)+' · 1 RDV : −'+amount(config.rdv1)+' · 0 RDV : −'+amount(config.rdv0)+'<br><b>Retards</b><br>0–10 min : −'+amount(config.lateGreen)+' · 11–30 min : −'+amount(config.lateOrange)+' · +30 min : −'+amount(config.lateRed)+'<br><b>Absences</b><br>Demi-journée : −'+amount(config.absenceHalf)+' · Journée : −'+amount(config.absenceFull);
+    return '<b>Bonus rendez-vous</b><br>+'+amount(config.rdvBonusPerExtra)+' par rendez-vous au-delà de l’objectif ('+config.rdvTarget+' / jour)<br><b>Malus rendez-vous · objectif '+config.rdvTarget+' / jour</b><br>2 RDV : −'+amount(config.rdv2)+' · 1 RDV : −'+amount(config.rdv1)+' · 0 RDV : −'+amount(config.rdv0)+'<br><b>Retards</b><br>0–10 min : −'+amount(config.lateGreen)+' · 11–30 min : −'+amount(config.lateOrange)+' · +30 min : −'+amount(config.lateRed)+'<br><b>Absences</b><br>Demi-journée : −'+amount(config.absenceHalf)+' · Journée : −'+amount(config.absenceFull);
   }
   function renderPay(data){
     const estimate=data.salaryAfterMaluses??data.baseSalary;
