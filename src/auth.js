@@ -503,15 +503,37 @@
     const table = $("employeesTable");
     if (!table) return;
     const byId = new Map(records.map(record => [String(record.employee.id), record]));
+    const employees = dashboardData().employees || [];
+    const employeeById = new Map(employees.map(employee => [String(employee.id), employee]));
     if (!$("ccEmployeeSignalStyle")) {
       const style = document.createElement("style");
       style.id = "ccEmployeeSignalStyle";
-      style.textContent = ".cc-employee-signal-set{display:inline-flex;vertical-align:middle;align-items:center;gap:6px;margin-left:10px;flex-wrap:wrap}.cc-employee-signal{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border:1px solid #514143;border-radius:999px;background:#2b2324;color:#e9dfe0;white-space:nowrap}.cc-employee-signal small{font-size:9px;font-weight:800;letter-spacing:.035em;color:#e9dfe0}.cc-employee-signal .cc-dash-dot{width:8px;height:8px;box-shadow:0 0 8px currentColor}.cc-employee-signal.green{color:#67d6a5;border-color:#376a54;background:#1d3029}.cc-employee-signal.orange{color:#f0b85c;border-color:#785e38;background:#342b20}.cc-employee-signal.red{color:#ef8190;border-color:#79424a;background:#382428}.cc-employee-signal.missing,.cc-employee-signal.pending{color:#aaa0a1}.cc-employee-signal.missing .cc-dash-dot,.cc-employee-signal.pending .cc-dash-dot{background:#8a8182;box-shadow:none}@media(max-width:800px){.cc-employee-signal-set{margin-left:6px;gap:4px}.cc-employee-signal{padding:2px 5px}.cc-employee-signal small{font-size:8px}}";
+      style.textContent = ".cc-employee-signal-set{display:inline-flex;vertical-align:middle;align-items:center;gap:6px;margin-left:10px;flex-wrap:wrap}.cc-employee-signal{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border:1px solid #514143;border-radius:999px;background:#2b2324;color:#e9dfe0;white-space:nowrap}.cc-employee-signal small{font-size:9px;font-weight:800;letter-spacing:.035em;color:#e9dfe0}.cc-employee-signal .cc-dash-dot{width:8px;height:8px;box-shadow:0 0 8px currentColor}.cc-employee-signal.green{color:#67d6a5;border-color:#376a54;background:#1d3029}.cc-employee-signal.orange{color:#f0b85c;border-color:#785e38;background:#342b20}.cc-employee-signal.red{color:#ef8190;border-color:#79424a;background:#382428}.cc-employee-signal.missing,.cc-employee-signal.pending{color:#aaa0a1}.cc-employee-signal.missing .cc-dash-dot,.cc-employee-signal.pending .cc-dash-dot{background:#8a8182;box-shadow:none}.cc-brokerlink-missing-warning{display:inline-grid;place-items:center;vertical-align:middle;margin-left:7px;width:19px;height:19px;border:1px solid #9b7133;border-radius:50%;background:#49371e;color:#ffd37a;font-size:13px;font-weight:900;line-height:1;cursor:help;box-shadow:0 0 10px #f1b94a22}@media(max-width:800px){.cc-employee-signal-set{margin-left:6px;gap:4px}.cc-employee-signal{padding:2px 5px}.cc-employee-signal small{font-size:8px}.cc-brokerlink-missing-warning{width:17px;height:17px;margin-left:5px;font-size:12px}}";
       document.head.appendChild(style);
     }
     for (const row of table.querySelectorAll("tr.employee-click-row[data-profile]")) {
-      const id = String(row.dataset.profile), record = byId.get(id), cell = row.cells?.[0];
-      if (!cell || !record) continue;
+      const id = String(row.dataset.profile), cell = row.cells?.[0], employee = employeeById.get(id);
+      if (!cell) continue;
+      const email = String(employee?.brokerlinkEmail || employee?.brokerlink_email || "").trim();
+      let warning = cell.querySelector(".cc-brokerlink-missing-warning");
+      if (employee && !email) {
+        if (!warning) {
+          warning = document.createElement("span");
+          warning.className = "cc-brokerlink-missing-warning";
+          warning.textContent = "⚠";
+          warning.setAttribute("role", "img");
+          const name = cell.querySelector(".profile-name-button");
+          if (name) name.insertAdjacentElement("afterend", warning);
+          else cell.appendChild(warning);
+        }
+        warning.title = "E-mail Brokerlink manquant — renseigne-le dans la fiche pour synchroniser les KPI et les malus.";
+        warning.setAttribute("aria-label", warning.title);
+      } else if (warning) {
+        warning.remove();
+      }
+
+      const record = byId.get(id);
+      if (!record) continue;
       let set = cell.querySelector(".cc-employee-signal-set");
       if (!set) {
         set = document.createElement("span");
