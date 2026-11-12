@@ -1165,13 +1165,13 @@
       const date=taskDateLabel(completed?(task.completedOn||task.due):(task.due||task.createdAt));
       const klass=stage?" cc-stage-"+stage:" cc-stage-neutral";
       const canComplete=taskRole()==="chef_plateau";
-      const roleAttrs=completed||!canComplete?"":" data-task-open=\""+escapeHtml(String(task.id))+"\" tabindex=\"0\" role=\"button\" aria-label=\"Ouvrir les détails : "+escapeHtml(primary)+"\"";
+      const roleAttrs=completed?(task.historyEntryId?" data-task-history-card=\""+escapeHtml(String(task.historyEntryId))+"\" tabindex=\"0\" role=\"button\" aria-label=\"Afficher le compte rendu : "+escapeHtml(primary)+"\"":"") : !canComplete?"":" data-task-open=\""+escapeHtml(String(task.id))+"\" tabindex=\"0\" role=\"button\" aria-label=\"Ouvrir les détails : "+escapeHtml(primary)+"\"";
       return '<article class="task cc-pipeline-card'+klass+(completed?' cc-pipeline-complete':' cc-pipeline-open')+'"'+roleAttrs+'>'+
         '<div class="cc-pipeline-meta"><span class="cc-pipeline-kind">'+(completed?'✓ Terminé':escapeHtml(kind))+'</span>'+
         (stageLabel?'<span class="cc-stage-badge cc-stage-badge-'+stage+'">'+escapeHtml(stageLabel)+'</span>':'')+'</div>'+
         '<div class="cc-pipeline-name">'+escapeHtml(primary)+'</div>'+
         '<div class="cc-pipeline-foot"><span class="cc-pipeline-instruction">'+escapeHtml(instruction)+'<small>'+escapeHtml(date)+'</small></span>'+
-        (!completed&&canComplete?'<span class="cc-pipeline-cta">Ouvrir les détails →</span>':!completed?'<span class="cc-pipeline-cta">À traiter par la cheffe de plateau</span>':'')+'</div></article>';
+        (!completed&&canComplete?'<span class="cc-pipeline-cta">Ouvrir les détails →</span>':!completed?'<span class="cc-pipeline-cta">À traiter par la cheffe de plateau</span>':task.historyEntryId?'<span class="cc-pipeline-cta">Voir le compte rendu →</span>':'')+'</div></article>';
     }
     function renderPipeline(){
       generateDailyTasks();
@@ -1184,7 +1184,24 @@
         localStorage.setItem("capsule_tasks",JSON.stringify(storedTasks));
       }
       const items=visibleTaskList(cleanTasks).filter(item=>!isPlaceholderTask(item));
-      const done=items.filter(isDone).sort((a,b)=>String(b.completedAt||b.completedOn||"").localeCompare(String(a.completedAt||a.completedOn||"")));
+      const today=taskBoardDate();
+      const taskHistory=Array.isArray(state.taskHistory)?state.taskHistory:[];
+      const todaysHistory=taskHistory.filter(entry=>String(entry.completedOn||String(entry.completedAt||"").slice(0,10)).slice(0,10)===today);
+      const representedIds=new Set(todaysHistory.map(entry=>String(entry.taskId||"")).filter(Boolean));
+      const historyCards=todaysHistory.map(entry=>{
+        const details=entry.details&&typeof entry.details==="object"?entry.details:{};
+        const parts=String(entry.taskId||"").split(":");
+        const rawAction=parts[1]||"";
+        const action=rawAction==="listen"?"quality":rawAction==="coach"?"coaching":rawAction;
+        const employeeId=details.employeeId||details.quality?.employeeId||details.coaching?.employeeId||entry.employeeId||
+          (parts[0]==="auto"&&["listen","coach"].includes(rawAction)?parts[2]:"");
+        const titleEmployee=String(entry.title||"").split("·").slice(1).join("·").trim();
+        const employee=details.employee||details.quality?.employee||details.coaching?.employee||entry.employee||
+          (state.employees||[]).find(person=>employeeId&&String(person.id)===String(employeeId))?.name||titleEmployee;
+        return {...entry,id:"history:"+String(entry.id),historyEntryId:entry.id,action,employee,employeeId,status:"Terminée",completedOn:entry.completedOn||today,completedAt:entry.completedAt||entry.completedOn||today,due:entry.completedOn||today};
+      });
+      const unmatchedDone=items.filter(item=>isDone(item)&&String(item.completedOn||String(item.completedAt||"").slice(0,10)).slice(0,10)===today&&!representedIds.has(String(item.id)));
+      const done=[...historyCards,...unmatchedDone].sort((a,b)=>String(b.completedAt||b.completedOn||"").localeCompare(String(a.completedAt||a.completedOn||"")));
       const firstColumn=items.filter(item=>!isDone(item)&&item.action!=="coaching");
       const coachings=items.filter(item=>!isDone(item)&&item.action==="coaching");
       const lane=(name,key,list)=>'<section class="lane cc-task-lane cc-lane-'+key+'"><div class="lanehead">'+name+'<span>'+list.length+'</span></div>'+
@@ -1194,6 +1211,8 @@
         :'<div class="cc-task-empty">Les tâches terminées apparaîtront ici.</div>';
       board.innerHTML=lane("Écoutes & tâches à faire","listen",firstColumn)+lane("Coachings à faire","coaching",coachings)+
         '<section class="lane cc-task-lane cc-lane-done"><div class="lanehead">Terminé<span>'+done.length+'</span></div>'+completedMarkup+'</section>';
+      board.onclick=event=>{const card=event.target.closest("[data-task-history-card]");if(!card)return;const entry=taskHistory.find(item=>String(item.id)===String(card.dataset.taskHistoryCard));if(entry)openTaskHistoryDetails(entry,window.crmGetLocalState?.()||state)};
+      board.onkeydown=event=>{if(event.key!=="Enter"&&event.key!==" ")return;const card=event.target.closest("[data-task-history-card]");if(!card)return;event.preventDefault();const entry=taskHistory.find(item=>String(item.id)===String(card.dataset.taskHistoryCard));if(entry)openTaskHistoryDetails(entry,window.crmGetLocalState?.()||state)};
     }
     window.ensureMandatoryTasks=generateDailyTasks;
     window.renderTasks=renderPipeline;
@@ -1222,7 +1241,7 @@
       const employeeName=String(details.employee||details.quality?.employee||details.coaching?.employee||entry.employee||linkedEmployee?.name||titleEmployee||"").trim();
       const day=String(details.date||details.quality?.date||details.coaching?.date||(action==="dailyReport"?parts[2]:parts.length>=5?parts[3]:"")||entry.completedOn||String(entry.completedAt||"").slice(0,10)).slice(0,10);
       const normalize=value=>String(value||"").trim().toLocaleLowerCase("fr");
-      const matchingRecord=rows=>(Array.isArray(rows)?rows:[]).find(row=>(!employeeName||normalize(row.employee)===normalize(employeeName))&&(!day||String(row.date||"").slice(0,10)===day));
+      const matchingRecord=rows=>{const list=Array.isArray(rows)?rows:[],sameEmployee=row=>!employeeName||normalize(row.employee)===normalize(employeeName),exact=list.find(row=>sameEmployee(row)&&(!day||String(row.date||"").slice(0,10)===day));if(exact)return exact;if(!day)return null;const end=new Date(day+"T12:00:00");if(Number.isNaN(end.getTime()))return null;const monday=new Date(end);monday.setDate(monday.getDate()-((monday.getDay()+6)%7));const start=monday.toISOString().slice(0,10);return list.filter(row=>sameEmployee(row)&&String(row.date||"").slice(0,10)>=start&&String(row.date||"").slice(0,10)<=day).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||Number(b.id||0)-Number(a.id||0))[0]||null};
       const fields=[];
       const addField=(label,value)=>{
         if(value===undefined||value===null||String(value).trim()==="")return;
@@ -1235,12 +1254,11 @@
         addField("Points abordés",report.issues);
         addField("Actions prévues",report.actions);
         addField("Décisions",report.decisions);
-      }else if(action==="listen"||details.quality){
-        const record=details.quality||matchingRecord(state.qualityHistory);
-        if(record){addField("Collaborateur",record.employee||employeeName);addField("Score",record.score===undefined?"":String(record.score)+" %");addField("Critère",record.category);addField("Évaluateur",record.evaluator);addField("Notes d’écoute",record.notes);addField("Suite prévue",record.coach)}
-      }else if(action==="coach"||details.coaching){
-        const record=details.coaching||matchingRecord(state.coachingHistory);
-        if(record){addField("Collaborateur",record.employee||employeeName);addField("Coach",record.coach);addField("Thème",record.category);addField("Objectif",record.objective);addField("Compte rendu",record.content);addField("Résultat / prochaine étape",record.result)}
+      }else{
+        const qualityRecord=details.quality||(action==="listen"?matchingRecord(state.qualityHistory):null);
+        const coachingRecord=details.coaching||(action==="coach"?matchingRecord(state.coachingHistory):null);
+        if(qualityRecord){addField("Date de l’écoute",qualityRecord.date);addField("Collaborateur",qualityRecord.employee||employeeName);addField("Score",qualityRecord.score===undefined?"":String(qualityRecord.score)+" %");addField("Critère",qualityRecord.category);addField("Évaluateur",qualityRecord.evaluator);addField("Notes d’écoute",qualityRecord.notes);addField("Suite prévue",qualityRecord.coach)}
+        if(coachingRecord){addField("Date du coaching",coachingRecord.date);addField("Collaborateur",coachingRecord.employee||employeeName);addField("Coach",coachingRecord.coach);addField("Thème",coachingRecord.category);addField("Objectif",coachingRecord.objective);addField("Compte rendu",coachingRecord.content);addField("Résultat / prochaine étape",coachingRecord.result)}
       }
       if(!fields.length){
         for(const [key,value] of Object.entries(details)){
