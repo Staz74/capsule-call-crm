@@ -1464,7 +1464,9 @@ function renderProfile(id,tab="info"){
 function moveTaskToInProgress(id){const task=tasks.find(x=>String(x.id)===String(id));if(!task||task.status!=="À faire")return;task.status="En cours";task.updatedAt=new Date().toISOString();set("tasks",tasks);renderTasks();renderDash();toast("Tâche déplacée dans En cours.")}
 function renderTasks(){
  const groups=[["À faire","À faire"],["En cours","En cours"],["Terminées","Terminée"]];
- const today=window.dashboardZurichDate?.()||new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+ try{const storedHistory=JSON.parse(localStorage.getItem("capsule_taskHistory")||"null");if(Array.isArray(storedHistory))taskHistory.splice(0,taskHistory.length,...storedHistory)}catch(_){}
+ const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+ const today=parts.find(x=>x.type==="year")?.value+"-"+parts.find(x=>x.type==="month")?.value+"-"+parts.find(x=>x.type==="day")?.value;
  const completedToday=taskHistory.filter(h=>String(h.completedOn||String(h.completedAt||"").slice(0,10))===today);
  const historyTaskIds=new Set(completedToday.map(h=>String(h.taskId)));
  const unloggedDone=tasks.filter(t=>t.status==="Terminée"&&String(t.completedOn||"")===today&&!historyTaskIds.has(String(t.id)));
