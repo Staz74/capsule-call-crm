@@ -9,13 +9,21 @@
   const $ = (id) => document.getElementById(id);
   function normalizeEmployeeStatuses(input) { return (Array.isArray(input)?input:[]).map(employee=>employee?.status==="Actif"?{...employee,status:"Autonome"}:employee); }
   function taskBoardDate() { return typeof dashboardZurichDate === "function" ? dashboardZurichDate() : new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()); }
+  function isPlaceholderTask(task) {
+    const title = String(task?.title || task?.name || "").trim().toLocaleLowerCase("fr").replace(/\\s+/g, " ");
+    const action = String(task?.action || "").trim();
+    const hasLinkedWork = Boolean(action || String(task?.employee || "").trim() || task?.employeeId != null);
+    const genericTitles = ["action à réaliser","tâche","tâches","tâche à faire","tâches à faire","tâche à effectuer","tâches à effectuer","tâche à effectuer aujourd’hui","tâches à effectuer aujourd’hui","à faire","à effectuer","ouvrir le formulaire","enregistrer le compte rendu"];
+    return genericTitles.includes(title) || (!title && !hasLinkedWork) ||
+      (!hasLinkedWork && /^(?:action|tâches?|actions?)\\s+(?:à\\s+)?(?:faire|effectuer|réaliser)(?:\\s+aujourd’hui)?$/.test(title));
+  }
   function normalizeTaskList(input, resetOldDone = false) {
     const today = taskBoardDate();
     return (Array.isArray(input) ? input : []).filter(task => {
       const title = String(task?.title || task?.name || "").trim();
       const action = String(task?.action || "");
       const lower = title.toLocaleLowerCase("fr");
-      if (!title || ["ouvrir le formulaire","enregistrer le compte rendu"].includes(lower)) return false;
+      if (isPlaceholderTask(task)) return false;
       if (lower === "action à réaliser" && /ouvrir le formulaire|enregistrer le compte rendu/i.test(String(task?.desc || action))) return false;
       if (/days$/i.test(action) && String(task?.source || "").toLocaleLowerCase("fr").includes("contrôle")) return false;
       if (resetOldDone && ["Terminée","Terminé","Effectué","Done"].includes(String(task?.status || ""))) {
@@ -991,10 +999,7 @@
         if(parts[0]!=="auto"||isDone(task))return false;
         return parts[1]==="coach" || (parts[1]==="listen"&&parts.length===4);
       };
-      const genericPlaceholder = task => {
-        const title=String(task?.title||task?.name||"").trim().toLocaleLowerCase("fr").split(" ").filter(Boolean).join(" ");
-        return ["action à réaliser","tâche","tâches","tâche à faire","tâches à faire","tâche à effectuer","tâches à effectuer","ouvrir le formulaire","enregistrer le compte rendu"].includes(title);
-      };
+      const genericPlaceholder = isPlaceholderTask;
       const retained = tasks.filter(task => !isLegacyGeneratedTask(task) && !genericPlaceholder(task));
       retained.forEach(task => { if (!task.assignedRole) task.assignedRole="chef_plateau"; });
       tasks.splice(0,tasks.length,...retained);
@@ -1197,6 +1202,7 @@
       modal.style.display="flex";
       modal.querySelector("[data-close-task-history]")?.focus();
     }
+    let selectedTaskHistoryDay=taskBoardDate();
     const originalRenderHistory=window.renderTaskHistory;
     if(typeof originalRenderHistory==="function"){
       window.renderTaskHistory=function(...args){
@@ -1211,18 +1217,27 @@
         const original=history.slice().sort((a,b)=>String(b.completedAt||b.completedOn||"").localeCompare(String(a.completedAt||a.completedOn||"")));
         const seen=new Set(),unique=[];
         for(const item of original){const key=String(item.taskId||("entry:"+item.id));if(seen.has(key))continue;seen.add(key);unique.push(item)}
-        history.splice(0,history.length,...unique);
+        const dayOf=item=>String(item.completedOn||item.completed_on||item.date||item.completedAt||item.completed_at||"").slice(0,10);
+        const filtered=unique.filter(item=>dayOf(item)===selectedTaskHistoryDay);
+        history.splice(0,history.length,...filtered);
         let result;
         try{result=originalRenderHistory.apply(this,args)}
         finally{history.splice(0,history.length,...original)}
         const host=$("taskHistoryList");
         if(host){
+          const bar=document.createElement("div");
+          bar.style.cssText="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border:1px solid #493b3e;border-radius:11px;background:#292223;color:#f3e7e8";
+          bar.innerHTML='<label for="ccTaskHistoryDay" style="font-size:12px;font-weight:700;color:#e9c3ca">Afficher les tâches du jour</label><input id="ccTaskHistoryDay" type="date" value="'+escapeHtml(selectedTaskHistoryDay)+'" style="padding:7px 9px;border:1px solid #674d54;border-radius:8px;background:#33282b;color:#f5e9eb;font:inherit;color-scheme:dark">';
+          host.prepend(bar);
+          const picker=bar.querySelector("input");
+          picker?.addEventListener("change",()=>{selectedTaskHistoryDay=picker.value||taskBoardDate();window.renderTaskHistory?.()});
           host.querySelectorAll("tbody tr").forEach((row,index)=>{
             row.dataset.taskHistoryIndex=String(index);row.tabIndex=0;row.setAttribute("role","button");row.title="Cliquer pour afficher le compte rendu";
             row.style.cursor="pointer";
           });
-          host.onclick=event=>{const row=event.target.closest("tr[data-task-history-index]");if(!row)return;const item=unique[Number(row.dataset.taskHistoryIndex)];if(item)openTaskHistoryDetails(item,window.crmGetLocalState?.()||state)};
-          host.onkeydown=event=>{if(event.key!=="Enter"&&event.key!==" ")return;const row=event.target.closest("tr[data-task-history-index]");if(!row)return;event.preventDefault();const item=unique[Number(row.dataset.taskHistoryIndex)];if(item)openTaskHistoryDetails(item,window.crmGetLocalState?.()||state)};
+          const count=$("taskHistoryCount");if(count)count.textContent=filtered.length+" action"+(filtered.length===1?"":"s");
+          host.onclick=event=>{const row=event.target.closest("tr[data-task-history-index]");if(!row)return;const item=filtered[Number(row.dataset.taskHistoryIndex)];if(item)openTaskHistoryDetails(item,window.crmGetLocalState?.()||state)};
+          host.onkeydown=event=>{if(event.key!=="Enter"&&event.key!==" ")return;const row=event.target.closest("tr[data-task-history-index]");if(!row)return;event.preventDefault();const item=filtered[Number(row.dataset.taskHistoryIndex)];if(item)openTaskHistoryDetails(item,window.crmGetLocalState?.()||state)};
         }
         return result;
       };
