@@ -50,7 +50,7 @@ Deno.serve(async(req:Request)=>{
   const configured={
     base:baseSalary,rdvTarget:target,rdv0:money(rules.rdv0),rdv1:money(rules.rdv1),rdv2:money(rules.rdv2),
     lateGreen:money(rules.lateGreen),lateOrange:money(rules.lateOrange),lateRed:money(rules.lateRed),
-    absenceHalf:money(rules.absenceHalf),absenceFull:money(rules.absenceFull)
+    absenceHalf:money(rules.absenceHalf),absenceFull:money(rules.absenceFull),rdvBonus4:money(rules.rdvBonus4),rdvBonus5:money(rules.rdvBonus5),rdvBonus6:money(rules.rdvBonus6),rdvBonus7:money(rules.rdvBonus7)
   };
   const settings={...configured};
   let demoDefaultsApplied=false;
@@ -149,7 +149,18 @@ Deno.serve(async(req:Request)=>{
   }
   maluses.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const totalDeductions=productionMalus+lateMalus+absenceMalus;
-  const salaryAfterMaluses=Math.max(0,baseSalary-totalDeductions);
+  const bonuses:any[]=[];
+  let totalBonuses=0;
+  for(const [date,count] of [...perDay.entries()].sort(([a],[b])=>a.localeCompare(b))){
+    if(date<malusStart||date>monthEnd||absenceDays.has(date))continue;
+    const key=count>=7?"rdvBonus7":count===6?"rdvBonus6":count===5?"rdvBonus5":count===4?"rdvBonus4":null;
+    if(!key)continue;
+    const amount=configured[key as keyof typeof configured] as number;
+    if(amount<=0)continue;
+    totalBonuses+=amount;
+    bonuses.push({date,label:dateLabel(date),kind:"rdvBonus",detail:count+" rendez-vous réalisés",amount});
+  }
+  const salaryAfterMaluses=Math.max(0,baseSalary-totalDeductions+totalBonuses);
   const openingRank=hasOpeningData?rankFor(openingsTotal):null;
   const nextRank=openingRank?ranks[ranks.indexOf(openingRank)+1]||null:null;
   const remaining=openingRank&&nextRank?Math.max(0,nextRank.min-openingsTotal):null;
@@ -160,20 +171,20 @@ Deno.serve(async(req:Request)=>{
   const tenureWeeks=startDate?Math.max(0,Math.floor((Date.now()-new Date(startDate+"T12:00:00Z").getTime())/(7*86400000))):null;
   const rdvMalusConfigured=[settings.rdv0,settings.rdv1,settings.rdv2].some(v=>v>0);
   const lateMalusConfigured=[settings.lateGreen,settings.lateOrange,settings.lateRed].some(v=>v>0);
-  const absenceMalusConfigured=[settings.absenceHalf,settings.absenceFull].some(v=>v>0);
+  const absenceMalusConfigured=[settings.absenceHalf,settings.absenceFull].some(v=>v>0);\n  const rdvBonusConfigured=[settings.rdvBonus4,settings.rdvBonus5,settings.rdvBonus6,settings.rdvBonus7].some(v=>v>0);
   return json({
     month,username:profile.username,displayName:profile.display_name,employeeName:employee.name,
-    baseSalary,fullMonthBaseSalary,isNovember2026Prorata,salaryAfterMaluses,totalDeductions,productionMalus,lateMalus,absenceMalus,
+    baseSalary,fullMonthBaseSalary,isNovember2026Prorata,salaryAfterMaluses,totalDeductions,totalBonuses,productionMalus,lateMalus,absenceMalus,
     currentRankEstimate:openingRank?salaryAfterMaluses*openingRank.coefficient:null,
     nextRankEstimate:nextRank?salaryAfterMaluses*nextRank.coefficient:null,
     rank:openingRank?{name:openingRank.name,min:openingRank.min,coefficient:openingRank.coefficient}:null,
     nextRank:nextRank?{name:nextRank.name,min:nextRank.min,coefficient:nextRank.coefficient}:null,
     openingsRemaining:remaining,appointmentsToday:todayRdv,appointmentTarget:target,appointmentsTotal:hasAppointmentData?appointmentTotal:null,
     openingsToday:hasOpeningData?todayOpenings:null,lateCount:lates.length,absenceCount:absences.length,attendancePercent,tenureWeeks,
-    missingRdv:hasAppointmentData?missingRdv:null,productionDays:perDay.size,maluses,
+    missingRdv:hasAppointmentData?missingRdv:null,productionDays:perDay.size,maluses,bonuses,
     configuration:configured,settings,demoDefaultsApplied,
     hasKpiData:hasAppointmentData,hasOpeningData,hasAttendanceData:Object.prototype.hasOwnProperty.call(state,attendanceKey),
-    rdvMalusConfigured,lateMalusConfigured,absenceMalusConfigured,demoMode,updatedAt:new Date().toISOString()
+    rdvMalusConfigured,lateMalusConfigured,absenceMalusConfigured,rdvBonusConfigured,demoMode,updatedAt:new Date().toISOString()
   });
  }catch(error){console.error("my-salary:",error);return json({error:"Impossible de charger ton estimation de salaire pour le moment."},500);}
 });
