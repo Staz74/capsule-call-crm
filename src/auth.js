@@ -1153,7 +1153,11 @@
       const details=entry?.details&&typeof entry.details==="object"?entry.details:{};
       const parts=String(entry?.taskId||"").split(":");
       const action=parts[1]||"";
-      const employeeName=String(details.employee||details.quality?.employee||details.coaching?.employee||entry.employee||"").trim();
+      const employeeId=details.employeeId||details.quality?.employeeId||details.coaching?.employeeId||entry.employeeId||
+        (parts[0]==="auto"&&["listen","coach"].includes(action)?parts[2]:"");
+      const linkedEmployee=(Array.isArray(state.employees)?state.employees:[]).find(item=>employeeId&&String(item.id)===String(employeeId));
+      const titleEmployee=String(entry.title||"").split("·").slice(1).join("·").trim();
+      const employeeName=String(details.employee||details.quality?.employee||details.coaching?.employee||entry.employee||linkedEmployee?.name||titleEmployee||"").trim();
       const day=String(details.date||details.quality?.date||details.coaching?.date||(action==="dailyReport"?parts[2]:parts.length>=5?parts[3]:"")||entry.completedOn||String(entry.completedAt||"").slice(0,10)).slice(0,10);
       const normalize=value=>String(value||"").trim().toLocaleLowerCase("fr");
       const matchingRecord=rows=>(Array.isArray(rows)?rows:[]).find(row=>(!employeeName||normalize(row.employee)===normalize(employeeName))&&(!day||String(row.date||"").slice(0,10)===day));
