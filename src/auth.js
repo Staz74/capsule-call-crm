@@ -187,7 +187,7 @@
           localPayload = localPayload.filter((row) => {
             if (row?.source !== "brokerlink-api") return true;
             const email = String(row.email || row.brokerlink_email || "").trim().toLowerCase();
-            return email && linkedBrokerlinkEmails.has(email);
+            return email && linkedBrokerlinkEmails.has(email) && String(row?.date || "") >= "2026-09-01";
           });
         }
         storedOriginal.call(localStorage, "capsule_" + key, JSON.stringify(localPayload));
