@@ -89,15 +89,12 @@ Deno.serve(async (request: Request) => {
         return reply({ error: "Ce rôle n’est pas autorisé à synchroniser les données de performance." }, 403);
       }
     }
-    let storageClient = supabase;
-    if (scheduledRun) {
-      const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
-      const serviceKey = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-      if (!serviceKey) return reply({ error: "La clé serveur Supabase n’est pas configurée." }, 503);
-      storageClient = createClient(projectUrl, serviceKey, {
-        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-      });
-    }
+    const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
+    const serviceKey = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    if (!serviceKey) return reply({ error: "La clé serveur Supabase n’est pas configurée." }, 503);
+    const storageClient = createClient(projectUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
 
     const rawApiKey = Deno.env.get("BROKERLINK_API_KEY") || "";
     const keyLines = [...rawApiKey.matchAll(/(?:^|\r?\n)\s*(\d{4}\|[A-Za-z0-9]+)\s*(?=\r?\n|$)/gm)];
@@ -108,7 +105,9 @@ Deno.serve(async (request: Request) => {
 
     let body: Record<string, unknown> = {};
     try { body = await request.json(); } catch {}
-    const from = parseDate(body.from);
+    const cutoff = "2026-09-01";
+    const requestedFrom = parseDate(body.from);
+    const from = requestedFrom && requestedFrom < cutoff ? cutoff : requestedFrom;
     const to = parseDate(body.to);
     const today = currentZurichDate();
     const startMs = Date.parse(from + "T12:00:00Z");
@@ -128,6 +127,21 @@ Deno.serve(async (request: Request) => {
       if (email) nameByEmail.set(email, String(person?.name || "").trim());
     }
 
+    const { data: linkedStateRows, error: linkedStateError } = await storageClient
+      .from("crm_state")
+      .select("state_key,payload")
+      .in("state_key", ["employees", "archivedEmployees"]);
+    if (linkedStateError) throw linkedStateError;
+    const linkedEmails = new Set<string>();
+    for (const state of linkedStateRows || []) {
+      if (!["employees", "archivedEmployees"].includes(String(state.state_key))) continue;
+      const employees = Array.isArray(state.payload) ? state.payload : [];
+      for (const employee of employees) {
+        const email = normalizeEmail(employee?.brokerlinkEmail || employee?.brokerlink_email);
+        if (email) linkedEmails.add(email);
+      }
+    }
+
     const rows: Record<string, unknown>[] = [];
     const endpoint = new URL("/api/integrations/capsule-call/daily-stats", base);
     endpoint.searchParams.set("from", from);
@@ -142,7 +156,7 @@ Deno.serve(async (request: Request) => {
       for (const row of data) {
         const email = normalizeEmail(row?.email);
         const date = parseDate(row?.date);
-        if (!email || !date) continue;
+        if (!email || !date || date < cutoff || !linkedEmails.has(email)) continue;
         const lpp = asCount(row?.ouvertures_lpp);
         const lca = asCount(row?.signatures_lca);
         const signatures = lpp + lca;
@@ -173,9 +187,7 @@ Deno.serve(async (request: Request) => {
       if (page > 101) return reply({ error: "L’import dépasse la limite de pages autorisée." }, 413);
     } while (page <= lastPage);
 
-    const { error: kpiSaveError } = await storageClient.rpc("crm_merge_state", {
-      p_state_key: "kpiRows",
-      p_base: [],
+    const { error: kpiSaveError } = await storageClient.rpc("crm_sync_brokerlink_rows", {
       p_next: rows,
     });
     if (kpiSaveError) throw kpiSaveError;
@@ -187,7 +199,7 @@ Deno.serve(async (request: Request) => {
     });
     return reply({
       from, to, timezone: collaboratorResponse?.timezone || "Europe/Zurich",
-      collaborators: collaboratorRows.length, rows,
+      collaborators: collaboratorRows.length, linkedCollaborators: linkedEmails.size, rows,
     });
   } catch (error) {
     const status = Number((error as { status?: number })?.status) || 502;
