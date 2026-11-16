@@ -35,7 +35,7 @@
       return true;
     }).map(task => ["En cours","In progress"].includes(String(task.status || "")) ? { ...task, status:"À faire" } : task);
   }
-  const dataKeys = ["employees","candidates","archivedEmployees","archivedCandidates","appPermissions","tasks","taskHistory","qualityHistory","coachingHistory","synthesisActions","onboardingHistory","attendanceHistory","reports","meetings","docs","kpiRows","controlRules"];
+  const dataKeys = ["employees","candidates","archivedEmployees","archivedCandidates","appPermissions","tasks","taskHistory","qualityHistory","coachingHistory","synthesisActions","onboardingHistory","attendanceHistory","reports","meetings","docs","kpiRows","controlRules","trainingThemes","trainingAgenda","trainingHistory"];
   const storedOriginal = Storage.prototype.setItem;
   const removedOriginal = Storage.prototype.removeItem;
   const scopedKey = (key) => key.startsWith("capsule_") ? key.slice(8) : (key.startsWith("cc_onboarding_steps_") || key.startsWith("cc_attendance_")) ? "local:" + key : null;
@@ -319,12 +319,12 @@
 
   function applyPermissions(role) {
     const pages = {
-      admin: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","synthesis","documents","control","settings"],
-      rh: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","documents"],
-      directeur_operationnel:["synthesis"],
+      admin: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","synthesis","formationAgenda","documents","control","settings"],
+      rh: ["dashboard","candidates","employees","employee-archive","profile","onboarding","performance","quality","tasks","reports","formationAgenda","documents"],
+      directeur_operationnel:["formationAgenda"],
       imperator:["synthesis","tasks"],
       caller:["salary"],
-      chef_plateau: ["dashboard","employees","profile","onboarding","performance","quality","tasks","reports"]
+      chef_plateau: ["dashboard","employees","profile","onboarding","performance","quality","tasks","reports","synthesis","formationAgenda"]
     };
     let configured = null;
     try { const saved = JSON.parse(localStorage.getItem("capsule_appPermissions") || "{}")?.moduleAccess?.[role]; if (Array.isArray(saved)) configured = saved; } catch {}
@@ -928,6 +928,9 @@
     if(set.has("reports")||set.has("meetings"))window.renderReports?.();
     if(set.has("docs"))window.renderDocs?.();
     if(set.has("controlRules"))window.renderControlModule?.();
+    if(set.has("trainingAgenda"))window.crmRenderFormationAgenda?.();
+    if(set.has("trainingThemes"))window.crmRenderSynthesisThemes?.();
+    if(set.has("trainingHistory")){window.crmRefreshTrainingHistoryProfile?.();window.crmRenderFormationAgenda?.();}
     if(set.has("appPermissions"))window.crmApplyPermissions?.(currentProfile?.role);
     window.dispatchEvent(new Event("cc:dashboard-data-updated"));
   }
@@ -1524,6 +1527,34 @@ function setupTaskBoardEnhancements() {
     }
   }
 
+  let formationAgendaModulePromise = null;
+  function ensureFormationAgendaModule() {
+    if (window.ccFormationAgendaInitialized) return Promise.resolve(true);
+    if (formationAgendaModulePromise) return formationAgendaModulePromise;
+    formationAgendaModulePromise = new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = "./src/formation-agenda.js?v=20261116a";
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.head.append(script);
+    });
+    return formationAgendaModulePromise;
+  }
+  function ensureFormationAgendaRoleDefaults() {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem("capsule_appPermissions") || "{}"); } catch {}
+    if (!saved.moduleAccess || typeof saved.moduleAccess !== "object") return;
+    let changed = false;
+    const additions = { rh:["formationAgenda"], directeur_operationnel:["formationAgenda"], chef_plateau:["synthesis","formationAgenda"] };
+    Object.entries(additions).forEach(([role, required]) => {
+      const modules = saved.moduleAccess[role];
+      if (!Array.isArray(modules)) return;
+      required.forEach((module) => { if (!modules.includes(module)) { modules.push(module); changed = true; } });
+    });
+    if (changed) localStorage.setItem("capsule_appPermissions", JSON.stringify(saved));
+  }
+
   async function activate(session) {
     const user = session?.user;
     if (!user) return false;
@@ -1548,6 +1579,7 @@ function setupTaskBoardEnhancements() {
       return false;
     }
     if (refreshAppStateIfStale()) return false;
+    try { if (await ensureFormationAgendaModule()) ensureFormationAgendaRoleDefaults(); } catch (error) { console.warn("Formation & agenda module:", error); }
     if (["admin", "rh", "chef_plateau"].includes(profile.role)) {
       try { await invokeAdmin({ action:"deactivate-archived-callers" }); }
       catch (archiveError) { console.warn("Archived salary access sync:", archiveError); }
