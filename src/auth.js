@@ -1585,6 +1585,7 @@ function setupTaskBoardEnhancements() {
       catch (archiveError) { console.warn("Archived salary access sync:", archiveError); }
     }
     applyPermissions(profile.role);
+    window.crmRenderFormationAgenda?.();
     setupModuleBrowserHistory();
     setupSalaryAccessRolePermissions();
     setupSalaryAccessSettingsRouting();
