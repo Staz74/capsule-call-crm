@@ -55,7 +55,7 @@
     }
     if (!$("screen-formationAgenda")) {
       const screen = document.createElement("section"); screen.className = "screen"; screen.id = "screen-formationAgenda";
-      screen.innerHTML = '<div class="head"><div><div class="eyebrow">ACCOMPAGNEMENT · FORMATION</div><h1>Formations & agenda</h1><div class="sub">Le calendrier commun des formations, les groupes prévus et les séances réalisées.</div></div></div><div class="panel"><div class="panel-head"><div><div class="panel-title">Agenda partagé</div><div class="panel-desc">La RH consulte l’agenda. La chef de plateau organise les séances et en confirme la réalisation.</div></div></div><div class="cc-agenda-toolbar" id="ccAgendaSummary"></div><div id="ccAgendaCreate"></div><div id="ccAgendaList"></div></div>';
+      screen.innerHTML = '<div class="head"><div><div class="eyebrow">ACCOMPAGNEMENT · FORMATION</div><h1>Formations & agenda</h1><div class="sub">Le calendrier commun des formations, les groupes prévus et les séances réalisées.</div></div></div><div class="panel"><div class="panel-head"><div><div class="panel-title">Agenda partagé</div><div class="panel-desc">La RH et la chef de plateau peuvent planifier. La chef de plateau confirme les séances réalisées ; le directeur opérationnel les consulte.</div></div></div><div class="cc-agenda-toolbar" id="ccAgendaSummary"></div><div id="ccAgendaCreate"></div><div id="ccAgendaList"></div></div>';
       page.append(screen);
     }
     if (!document.querySelector("#screen-synthesis #ccTrainingThemes")) {
@@ -81,7 +81,7 @@
   function closeDialog() { const d = $("ccTrainingDialog"); if (d?.open && d.close) d.close(); else d?.removeAttribute("open"); }
   function observations() {
     const data = state(), result = [], activeNames = new Set(people().map(personName));
-    (data.qualityHistory || []).forEach((x,i) => { if (!activeNames.has(x.employee)) return; result.push({id:"quality:"+(x.id == null ? i : x.id),source:"Écoute qualité",date:x.date||"",employee:x.employee,employeeId:personIdByName(x.employee),topic:String(x.category||"Observation d’écoute").trim(),text:String(x.notes||"").trim()}); });
+    (data.qualityHistory || []).forEach((x,i) => { if (!activeNames.has(x.employee)) return; const note=String(x.notes||"").trim();result.push({id:"quality:"+(x.id == null ? i : x.id),source:"Écoute qualité",date:x.date||"",employee:x.employee,employeeId:personIdByName(x.employee),topic:String(x.category||note.split(/[.!?\\n]/)[0]||"Observation d’écoute").trim().slice(0,100),text:note}); });
     (data.coachingHistory || []).forEach((x,i) => { if (!activeNames.has(x.employee)) return; result.push({id:"coaching:"+(x.id == null ? i : x.id),source:"Coaching",date:x.date||"",employee:x.employee,employeeId:personIdByName(x.employee),topic:String(x.category||x.objective||"Observation de coaching").trim(),text:[x.objective&&"Objectif : "+x.objective,x.content&&"Contenu : "+x.content,x.result&&"Résultat : "+x.result].filter(Boolean).join(" · ")}); });
     return result.sort((a,b) => String(b.date).localeCompare(String(a.date)));
   }
@@ -129,6 +129,7 @@
   }
   function renderAgenda() {
     const host=$("ccAgendaList"); if(!host)return;
+    if($("screen-formationAgenda")?.classList.contains("active")&&$("crumb"))$("crumb").textContent="Formations & agenda";
     const all=(state().trainingAgenda||[]).slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))||String(a.time||"").localeCompare(String(b.time||"")));
     const done=all.filter((x)=>x.status==="completed"||x.status==="Terminée");
     const pending=all.filter((x)=>x.status!=="completed"&&x.status!=="Terminée");
