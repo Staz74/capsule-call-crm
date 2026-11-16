@@ -196,6 +196,8 @@
         let saved={};try{saved=JSON.parse(localStorage.getItem("capsule_appPermissions")||"{}");}catch{}
         const r=$("permissionRole")?.value||"",modules=saved?.moduleAccess?.[r],defaults=["admin","rh","chef_plateau","directeur_operationnel"];
         const check=label.querySelector("input");if(check)check.checked=Array.isArray(modules)?modules.includes("formationAgenda"):defaults.includes(r);
+        const synthesis=host.querySelector('[data-permission-module][value="synthesis"]');
+        if(synthesis&&!Array.isArray(modules)&&r==="chef_plateau")synthesis.checked=true;
       }
       return result;
     };
