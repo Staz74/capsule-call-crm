@@ -83,6 +83,13 @@
     const data = state(), result = [], activeNames = new Set(people().map(personName));
     (data.qualityHistory || []).forEach((x,i) => { if (!activeNames.has(x.employee)) return; const note=String(x.notes||"").trim();result.push({id:"quality:"+(x.id == null ? i : x.id),source:"Écoute qualité",date:x.date||"",employee:x.employee,employeeId:personIdByName(x.employee),topic:String(x.category||note.split(/[.!?\\n]/)[0]||"Observation d’écoute").trim().slice(0,100),text:note}); });
     (data.coachingHistory || []).forEach((x,i) => { if (!activeNames.has(x.employee)) return; result.push({id:"coaching:"+(x.id == null ? i : x.id),source:"Coaching",date:x.date||"",employee:x.employee,employeeId:personIdByName(x.employee),topic:String(x.category||x.objective||"Observation de coaching").trim(),text:[x.objective&&"Objectif : "+x.objective,x.content&&"Contenu : "+x.content,x.result&&"Résultat : "+x.result].filter(Boolean).join(" · ")}); });
+    const addTeamRecords=(rows,source)=> (rows||[]).forEach((x,i)=>{
+      const searchable=JSON.stringify(x).toLocaleLowerCase("fr"),matched=people().filter((e)=>searchable.includes(personName(e).toLocaleLowerCase("fr")));
+      const text=[x.summary,x.issues&&"Points abordés : "+x.issues,x.actions&&"Actions : "+x.actions,x.decisions&&"Décisions : "+x.decisions,x.notes].filter(Boolean).join(" · ");
+      const topic=String(x.theme||x.category||x.title||text.split(/[.!?]/)[0]||source).trim().slice(0,100);
+      matched.forEach((employee)=>result.push({id:source.toLocaleLowerCase("fr")+":"+(x.id==null?i:x.id)+":"+employee.id,source, date:x.date||"",employee:personName(employee),employeeId:String(employee.id),topic,text:text||"Compte rendu sans détail complémentaire."}));
+    });
+    addTeamRecords(data.reports,"Rapport");addTeamRecords(data.meetings,"Réunion");
     return result.sort((a,b) => String(b.date).localeCompare(String(a.date)));
   }
   function hash(value) { let h=0; for (const c of String(value)) h=((h*31)+c.charCodeAt(0))|0; return Math.abs(h).toString(36); }
