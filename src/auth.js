@@ -1544,15 +1544,16 @@ function setupTaskBoardEnhancements() {
   function ensureFormationAgendaRoleDefaults() {
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem("capsule_appPermissions") || "{}"); } catch {}
-    if (!saved.moduleAccess || typeof saved.moduleAccess !== "object") return;
-    let changed = false;
+    if (saved._formationAgendaAccessMigrated) return;
+    if (!saved.moduleAccess || typeof saved.moduleAccess !== "object") saved.moduleAccess = {};
     const additions = { rh:["formationAgenda"], directeur_operationnel:["formationAgenda"], chef_plateau:["synthesis","formationAgenda"] };
     Object.entries(additions).forEach(([role, required]) => {
       const modules = saved.moduleAccess[role];
       if (!Array.isArray(modules)) return;
-      required.forEach((module) => { if (!modules.includes(module)) { modules.push(module); changed = true; } });
+      required.forEach((module) => { if (!modules.includes(module)) modules.push(module); });
     });
-    if (changed) localStorage.setItem("capsule_appPermissions", JSON.stringify(saved));
+    saved._formationAgendaAccessMigrated = true;
+    localStorage.setItem("capsule_appPermissions", JSON.stringify(saved));
   }
 
   async function activate(session) {
