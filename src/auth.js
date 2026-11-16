@@ -542,7 +542,7 @@
     if (schedule.start === null) return { state:"missing", points:null, reason:"Horaire prévu à renseigner pour calculer les retards." };
     const lates = Array.isArray(store?.lates) ? store.lates : [];
     const absences = Array.isArray(store?.absences) ? store.absences : [];
-    const inWeek = (item) => String(item?.date || "").slice(0,10) >= expectedDates[0] && String(item?.date || "").slice(0,10) <= currentDate;
+    const inWeek = (item) => { const date=String(item?.date || "").slice(0,10); return dashboardWeekdays(date,date).length>0 && date >= expectedDates[0] && date <= currentDate; };
     const manual = lates.filter(inWeek);
     const manualLateDates = new Set(manual.map(item => String(item.date || "").slice(0,10)));
     const lateMinutes = manual.map(item => Number(item.minutes ?? item.duration) || 0);
@@ -574,8 +574,9 @@
     if (!expectedDates.length || !expectedDates.every(date => rows.has(date))) return { state:"missing", points:null, rdv:0, reason:"Données Brokerlink de la semaine en attente." };
     const schedule = dashboardSchedule(employee, rules);
     const todayRow = rows.get(currentDate);
-    const todayRdv = Math.max(0, Number(todayRow?.rdv_pris ?? 0) || 0);
-    const includeToday = schedule.end !== null && todayMinutes !== null && todayMinutes >= schedule.end;
+    const isWorkdayToday = dashboardWeekdays(currentDate,currentDate).length>0;
+    const todayRdv = isWorkdayToday ? Math.max(0, Number(todayRow?.rdv_pris ?? 0) || 0) : 0;
+    const includeToday = isWorkdayToday && schedule.end !== null && todayMinutes !== null && todayMinutes >= schedule.end;
     const completeDates = expectedDates.filter(date => date < currentDate || (date === currentDate && includeToday));
     if (!completeDates.length) return { state:"pending", points:null, rdv:0, todayRdv, reason:"La première journée de la semaine est encore en cours." };
     const daily = completeDates.map(date => Math.max(0, Number(rows.get(date)?.rdv_pris ?? 0) || 0));
