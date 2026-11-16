@@ -39,6 +39,7 @@
     const fr = text.match(/(?:^|\D)(\d{1,2})[/.](\d{1,2})[/.](\d{4})(?:\D|$)/);
     return fr ? fr[3] + "-" + fr[2].padStart(2, "0") + "-" + fr[1].padStart(2, "0") : "";
   };
+  const isWorkday = (value) => { const date=dateOf(value); if(!date)return false; const day=new Date(date+"T12:00:00Z").getUTCDay(); return day!==0&&day!==6; };
   const inPeriod = (value, from, to) => {
     const date = dateOf(value);
     if (!date) return !from && !to;
@@ -122,15 +123,15 @@
     const kpiRows = context.kpiRows || [];
     const records = employees.filter((employee) => selected.has(String(employee.id))).map((employee) => {
       const store = context.attendanceStore(employee.id) || {};
-      const lates = (store.lates || []).filter((item) => inPeriod(item.date, from, to));
-      const absences = (store.absences || []).filter((item) => inPeriod(item.date, from, to));
+      const lates = (store.lates || []).filter((item) => inPeriod(item.date, from, to) && isWorkday(item.date));
+      const absences = (store.absences || []).filter((item) => inPeriod(item.date, from, to) && isWorkday(item.date));
       const crmRows = (store.crm || []).filter((item) => inPeriod(item.date, from, to));
       const matchingKpis = kpiRows.filter((row) => rowMatchesEmployee(row, employee) && inPeriod(field(row, aliases.date), from, to));
       const logins = [
-        ...crmRows.map((item) => ({ date: item.date, time: timeText(item.firstLogin || item.first_login || item.firstConnection || item.h_1ere_co) })),
-        ...matchingKpis.map((row) => ({ date: field(row, aliases.date), time: timeText(field(row, aliases.firstLogin)) }))
+        ...crmRows.filter((item) => isWorkday(item.date)).map((item) => ({ date: item.date, time: timeText(item.firstLogin || item.first_login || item.firstConnection || item.h_1ere_co) })),
+        ...matchingKpis.filter((row) => isWorkday(field(row, aliases.date))).map((row) => ({ date: field(row, aliases.date), time: timeText(field(row, aliases.firstLogin)) }))
       ].filter((item) => item.time).sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")) || a.time.localeCompare(b.time));
-      const alertValues = [...crmRows.map((item) => number(item.alerts ?? item.alertCount ?? item.alertes)), ...matchingKpis.map((row) => number(field(row, aliases.alerts)))].filter((value) => value !== null);
+      const alertValues = [...crmRows.filter((item) => isWorkday(item.date)).map((item) => number(item.alerts ?? item.alertCount ?? item.alertes)), ...matchingKpis.filter((row) => isWorkday(field(row, aliases.date))).map((row) => number(field(row, aliases.alerts)))].filter((value) => value !== null);
       const lateCounts = { green: 0, orange: 0, red: 0 };
       const manualLateDates = new Set(lates.map(item => dateOf(item.date)).filter(Boolean));
       const absenceDates = new Set(absences.map(item => dateOf(item.date)).filter(Boolean));
