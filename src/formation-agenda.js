@@ -54,10 +54,10 @@
       const synthesis = nav.querySelector('[data-page="synthesis"]');
       if (synthesis) synthesis.insertAdjacentElement("afterend", button); else nav.append(button);
     }
-    if (!$("screen-formationAgenda")) {
-      const screen = document.createElement("section"); screen.className = "screen"; screen.id = "screen-formationAgenda";
-      screen.innerHTML = '<div class="head"><div><div class="eyebrow">ACCOMPAGNEMENT · FORMATION</div><h1>Formations & agenda</h1><div class="sub">Le calendrier commun des formations, les groupes prévus et les séances réalisées.</div></div><button class="btn primary" type="button" data-agenda-new>＋ Planifier une formation</button></div><div class="panel"><div class="panel-head"><div><div class="panel-title">Agenda partagé</div><div class="panel-desc">La RH et la chef de plateau peuvent planifier. La chef de plateau confirme les séances réalisées ; le directeur opérationnel les consulte.</div></div></div><div class="cc-agenda-toolbar" id="ccAgendaSummary"></div><div id="ccAgendaCreate"></div><div id="ccAgendaList"></div></div>';
-      page.append(screen);
+    let screen=$("screen-formationAgenda");
+    if(!screen){screen=document.createElement("section");screen.className="screen";screen.id="screen-formationAgenda";page.append(screen);}
+    if(!screen.querySelector("#ccAgendaList")||!screen.querySelector("#ccAgendaSummary")||!screen.querySelector("#ccAgendaCreate")){
+      screen.innerHTML='<div class="head"><div><div class="eyebrow">ACCOMPAGNEMENT · FORMATION</div><h1>Formations & agenda</h1><div class="sub">Le calendrier commun des formations, les groupes prévus et les séances réalisées.</div></div><button class="btn primary" type="button" data-agenda-new>＋ Planifier une formation</button></div><div class="panel"><div class="panel-head"><div><div class="panel-title">Agenda partagé</div><div class="panel-desc">La RH et la chef de plateau peuvent planifier. La chef de plateau confirme les séances réalisées ; le directeur opérationnel les consulte.</div></div></div><div class="cc-agenda-toolbar" id="ccAgendaSummary"></div><div id="ccAgendaCreate"></div><div id="ccAgendaList"></div></div>';
     }
     const oldThemeHost=$("ccTrainingThemes"); if(oldThemeHost)oldThemeHost.remove();
     const synthesis=document.querySelector("#screen-synthesis");
@@ -154,7 +154,7 @@
     return '<form class="cc-training-form" data-agenda-create><label>Thème<input name="title" maxlength="120" required placeholder="Sujet de la formation"></label><label>Date<input type="date" name="date" value="'+today()+'" required></label><label>Heure<input type="time" name="time"></label><label>Durée (minutes)<input type="number" name="duration" min="15" max="480" value="60"></label><label>Lieu / lien<input name="location" maxlength="180" placeholder="Salle ou lien de réunion"></label><label class="cc-wide">Objectif / préparation<textarea name="details" maxlength="1000"></textarea></label><div class="cc-agenda-person-list">'+list.map((e)=>'<label class="cc-person-chip"><input type="checkbox" data-agenda-person value="'+esc(String(e.id))+'"> '+esc(personName(e))+'</label>').join("")+'</div><button class="btn primary" type="submit">Ajouter à l’agenda partagé</button><button class="btn" type="button" data-training-dialog-close>Annuler</button></form>';
   }
   function renderAgenda() {
-    const host=$("ccAgendaList"); if(!host)return;
+    let host=$("ccAgendaList");if(!host){mountNavigation();host=$("ccAgendaList");}if(!host)return;
     if($("screen-formationAgenda")?.classList.contains("active")&&$("crumb"))$("crumb").textContent="Formations & agenda";
     const all=agendaItems();
     const done=all.filter(isDone);
