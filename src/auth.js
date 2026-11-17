@@ -28,6 +28,105 @@
     };
     window.ccExtraStateReaderInstalled = true;
   }
+  const qualityObservationGroups = [
+    ["Début d’appel", [
+      "Accroche — capter l’attention dans les premières secondes",
+      "Brise-glace — créer un échange naturel et chaleureux",
+      "Introduction — expliquer clairement le motif de l’appel",
+      "Gestion de l’appel — perdre le fil après une digression",
+      "Gestion de l’appel — silences prolongés non repris"
+    ]],
+    ["Trame LPP et proposition", [
+      "Trame — respecter l’ordre des étapes de l’appel",
+      "Trame — omettre ou déformer une étape importante",
+      "LPP — présenter les avoirs potentiellement oubliés sans l’affirmer comme un fait",
+      "Recherche gratuite — expliquer clairement son objectif et son cadre",
+      "Transition — amener naturellement la prise de rendez-vous",
+      "Compréhension du produit — expliquer incorrectement le but de la recherche LPP"
+    ]],
+    ["Voix et communication", [
+      "Voix — intonation monotone ou peu engageante",
+      "Voix — sourire vocal ou chaleur insuffisants",
+      "Voix — débit trop rapide ou précipité",
+      "Voix — débit trop lent ou manque d’énergie",
+      "Voix — articulation ou diction peu claire",
+      "Posture — stress, hésitations ou bégaiements",
+      "Vocabulaire — jargon ou termes trop complexes"
+    ]],
+    ["Écoute et relation client", [
+      "Écoute — couper la parole ou interrompre le client",
+      "Écoute — ne pas reformuler ou vérifier la compréhension",
+      "Posture — ton peu professionnel ou manque de respect"
+    ]],
+    ["Traitement des objections", [
+      "Objection — « pas intéressé » : ne pas clarifier le refus",
+      "Objection — « j’ai déjà un conseiller ou une solution »",
+      "Objection — « je n’ai pas le temps »",
+      "Objection — doutes sur la gratuité ou la légitimité de la démarche",
+      "Objection — insister malgré un refus clair"
+    ]],
+    ["Questions et limites du rôle", [
+      "Question simple — réponse imprécise sur la démarche",
+      "Question technique LPP — donner un conseil hors du rôle du caller",
+      "Question technique LPP — ne pas orienter vers le conseiller"
+    ]],
+    ["Prise de rendez-vous", [
+      "Qualification — ne pas vérifier l’accord ou les informations nécessaires",
+      "Rendez-vous — ne pas proposer de créneau concret",
+      "Rendez-vous — ne pas obtenir un accord explicite",
+      "Rendez-vous — récapitulatif incomplet des modalités",
+      "Conclusion — ne pas résumer le rendez-vous et la prochaine étape",
+      "Clôture — fin abrupte ou sans remerciement"
+    ]],
+    ["Saisie dans Brokerlink", [
+      "Brokerlink — mauvais type de rendez-vous sélectionné",
+      "Brokerlink — rendez-vous non enregistré",
+      "Brokerlink — erreur ou oubli lors de la saisie"
+    ]],
+    ["Respect du cadre", [
+      "Cadre commercial — promesse ou garantie non autorisée",
+      "Rôle du caller — donner un avis technique au lieu d’orienter le client"
+    ]]
+  ];
+  if (!window.ccQualityObservationCategoriesInstalled && typeof window.openModal === "function") {
+    const originalOpenModal = window.openModal;
+    const qualityOptions = qualityObservationGroups.map(([group, labels]) =>
+      '<optgroup label="' + group + '">' + labels.map(label =>
+        '<option value="' + label + '">' + label + '</option>'
+      ).join("") + '</optgroup>'
+    ).join("");
+    const allQualityCategories = qualityObservationGroups.flatMap(([, labels]) => labels);
+    window.openModal = function(type, ...args) {
+      const result = originalOpenModal.apply(this, [type, ...args]);
+      if (type !== "quality") return result;
+      const select = $("modalBody")?.querySelector('select[name="category"]');
+      if (!select) return result;
+      const current = select.value;
+      select.innerHTML = '<option value="" disabled selected>Choisir une catégorie d’observation…</option><option value="Pas besoin de formation">Pas besoin de formation</option>' + qualityOptions + '<option value="Autre">Autre</option>';
+      select.required = true;
+      if (current === "Pas besoin de formation" || current === "Autre" || allQualityCategories.includes(current)) select.value = current;
+      const field = select.closest(".field");
+      const label = field?.querySelector("label");
+      if (label) label.textContent = "Catégorie d’observation";
+      const hint = document.createElement("small");
+      hint.dataset.qualityCategoryHint = "1";
+      hint.textContent = "« Pas besoin de formation » conserve l’écoute sans créer de groupe. « Autre » apparaîtra dans la Synthèse opérationnelle ; précise le point dans l’observation.";
+      hint.style.cssText = "display:block;color:#c9babb;font-size:10px;line-height:1.45;margin-top:5px";
+      select.insertAdjacentElement("afterend", hint);
+      const notes = $("modalBody")?.querySelector('textarea[name="notes"]');
+      const syncOtherRequirement = () => {
+        if (!notes) return;
+        notes.required = select.value === "Autre";
+        notes.placeholder = select.value === "Autre"
+          ? "Décris précisément le fait observé et le comportement à travailler…"
+          : "Faits observés, exemple précis et axe de progression éventuel…";
+      };
+      select.addEventListener("change", syncOtherRequirement);
+      syncOtherRequirement();
+      return result;
+    };
+    window.ccQualityObservationCategoriesInstalled = true;
+  }
   function normalizeEmployeeStatuses(input) { return (Array.isArray(input)?input:[]).map(employee=>employee?.status==="Actif"?{...employee,status:"Autonome"}:employee); }
   function taskBoardDate() { return typeof dashboardZurichDate === "function" ? dashboardZurichDate() : new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()); }
   function isPlaceholderTask(task) {
