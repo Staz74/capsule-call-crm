@@ -8,6 +8,26 @@
   const liveStateVersions = new Map();
   const queues = new Map(), cloudBase = new Map();
   const $ = (id) => document.getElementById(id);
+  // Dynamic agenda modules store their own shared arrays in localStorage. Make
+  // those keys part of the central state reader so every view and sync hook sees them.
+  if (!window.ccExtraStateReaderInstalled) {
+    const baseGetLocalState = window.crmGetLocalState;
+    const extensionStateKeys = ["synthesisActions","trainingThemes","trainingAgenda","trainingHistory"];
+    window.crmGetLocalState = () => {
+      const current = typeof baseGetLocalState === "function" ? (baseGetLocalState() || {}) : {};
+      for (const key of extensionStateKeys) {
+        try {
+          const raw = localStorage.getItem("capsule_" + key);
+          if (raw !== null) current[key] = JSON.parse(raw);
+          else if (!Object.prototype.hasOwnProperty.call(current, key)) current[key] = [];
+        } catch {
+          if (!Object.prototype.hasOwnProperty.call(current, key)) current[key] = [];
+        }
+      }
+      return current;
+    };
+    window.ccExtraStateReaderInstalled = true;
+  }
   function normalizeEmployeeStatuses(input) { return (Array.isArray(input)?input:[]).map(employee=>employee?.status==="Actif"?{...employee,status:"Autonome"}:employee); }
   function taskBoardDate() { return typeof dashboardZurichDate === "function" ? dashboardZurichDate() : new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()); }
   function isPlaceholderTask(task) {
