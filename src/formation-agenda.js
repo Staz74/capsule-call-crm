@@ -132,11 +132,18 @@
     if(!groups.length){host.innerHTML='<div class="cc-prepared-empty">Aucune problématique n’est encore recensée. Dès qu’une écoute, un coaching, un rapport ou une réunion contient un point lié à un téléphoniste, il sera regroupé ici. Tu peux aussi créer un thème libre.</div>';return;}
     host.innerHTML=groups.map((g) => {const selected=(selectedByTheme[g.id]||[]).length,label=g.priority==="high"?"Prioritaire":g.priority==="medium"?"À travailler":"Suivi léger",scope=g.suggested?g.employeeIds.length+" téléphoniste(s) concerné(s)":"Sélection libre des téléphonistes";return '<article class="cc-training-card" data-priority="'+esc(g.priority||"medium")+'"><div class="theme-head"><div><span class="cc-topic-origin">'+(g.suggested?g.items.length+' observation(s)':'Thème personnalisé')+' · '+scope+'</span><h3><button type="button" class="cc-theme-title" data-theme-detail="'+esc(g.id)+'">'+esc(g.title)+'</button></h3></div><span class="cc-theme-badge">'+label+'</span></div><p>'+esc(g.details||g.items[0]?.text||"Clique sur les noms pour composer un groupe ciblé.")+'</p><small class="hint">Clique sur les noms pour choisir les participants</small>'+chips(g)+'<div class="cc-theme-foot"><span class="cc-theme-selection">'+selected+' sélectionné(s) sur '+(g.suggested?g.employeeIds.length:people().length)+'</span><button type="button" class="btn" data-theme-detail="'+esc(g.id)+'">Voir le détail</button><button class="btn primary" type="button" data-theme-plan="'+esc(g.id)+'">'+(selected?"Former le groupe ("+selected+")":"Choisir les téléphonistes")+'</button></div></article>';}).join("");
   }
+  function agendaItems() {
+    const trainings=(state().trainingAgenda||[]).map((item)=>({...item,_agendaType:"training"}));
+    const meetings=(state().meetings||[]).filter((item)=>item&&item.id!=null).map((item)=>({...item,id:"meeting:"+String(item.id),_sourceId:item.id,_agendaType:"meeting",title:item.title||item.kind||"Réunion"}));
+    return [...trainings,...meetings].sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))||String(a.time||"").localeCompare(String(b.time||"")));
+  }
+  function isDone(item) { return ["completed","terminée","terminee","done"].includes(String(item.status||"").toLocaleLowerCase("fr")); }
   function agendaCard(item) {
-    const done=item.status==="completed"||item.status==="Terminée";
+    const done=isDone(item), isMeeting=item._agendaType==="meeting";
     const names=(item.employeeIds||[]).map((id)=>personById(id)).filter(Boolean).map(personName);
-    const attendeeLabel=names.length?names.join(", "):(item.employeeNames||[]).join(", ")||"Équipe";
-    return '<button type="button" class="cc-agenda-event" data-agenda-detail="'+esc(item.id)+'"><span class="cc-agenda-date">'+esc(dateLabel(item.date))+(item.time?'<br><small>'+esc(timeLabel(item.time))+'</small>':"")+'</span><span><h3>'+esc(item.title||"Formation")+'</h3><span class="cc-agenda-meta">'+esc(attendeeLabel)+(item.location?" · "+esc(item.location):"")+'</span></span><span class="cc-agenda-status '+(done?"done":"")+'">'+(done?"Terminée":item.date<today()?"À reprogrammer":"Planifiée")+'</span></button>';
+    const attendeeLabel=isMeeting?(item.employee||"Équipe"):names.length?names.join(", "):(item.employeeNames||[]).join(", ")||"Équipe";
+    const status=done?(isMeeting?"Réalisée":"Terminée"):item.date<today()?"À reprogrammer":isMeeting?"Réunion planifiée":"Planifiée";
+    return '<button type="button" class="cc-agenda-event '+(isMeeting?"cc-agenda-meeting":"")+'" data-agenda-detail="'+esc(item.id)+'"><span class="cc-agenda-date">'+esc(dateLabel(item.date))+(item.time?'<br><small>'+esc(timeLabel(item.time))+'</small>':"")+'</span><span><small class="cc-topic-origin">'+(isMeeting?"Réunion":"Formation")+'</small><h3>'+esc(item.title||(isMeeting?"Réunion":"Formation"))+'</h3><span class="cc-agenda-meta">'+esc(attendeeLabel)+(item.location?" · "+esc(item.location):"")+'</span></span><span class="cc-agenda-status '+(done?"done":"")+'">'+esc(status)+'</span></button>';
   }
   function newAgendaForm() {
     document.querySelectorAll("[data-agenda-new]").forEach((button)=>button.hidden=!manager());
@@ -149,20 +156,56 @@
   function renderAgenda() {
     const host=$("ccAgendaList"); if(!host)return;
     if($("screen-formationAgenda")?.classList.contains("active")&&$("crumb"))$("crumb").textContent="Formations & agenda";
-    const all=(state().trainingAgenda||[]).slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))||String(a.time||"").localeCompare(String(b.time||"")));
-    const done=all.filter((x)=>x.status==="completed"||x.status==="Terminée");
-    const pending=all.filter((x)=>x.status!=="completed"&&x.status!=="Terminée");
+    const all=agendaItems();
+    const done=all.filter(isDone);
+    const pending=all.filter((x)=>!isDone(x));
     const todays=pending.filter((x)=>String(x.date||"").slice(0,10)===today()).length;
     const summary=$("ccAgendaSummary"); if(summary)summary.innerHTML='<span class="cc-agenda-count">'+todays+' aujourd’hui</span><span class="cc-agenda-count">'+pending.length+' à venir / à reprogrammer</span><span class="cc-agenda-count">'+done.length+' réalisée(s)</span>';
     const form=$("ccAgendaCreate");if(form)form.innerHTML=newAgendaForm();
-    host.innerHTML=(pending.length?'<div class="panel-desc" style="padding:12px 16px 0">À venir</div><div class="cc-agenda-list">'+pending.map(agendaCard).join("")+'</div>':'<div class="cc-agenda-empty"><b>Ton agenda de formation est prêt.</b><p>Aucune formation n’est planifiée pour le moment. Les séances préparées dans Synthèse opérationnelle apparaîtront ici.</p>'+(manager()?'<button class="btn primary" type="button" data-agenda-new>＋ Planifier la première formation</button>':'<span>La chef de plateau ou la RH pourra ajouter les prochaines séances.</span>')+'</div>')+(done.length?'<div class="panel-desc" style="padding:10px 16px 0">Formations réalisées</div><div class="cc-agenda-list">'+done.slice().reverse().map(agendaCard).join("")+'</div>':"");
+    host.innerHTML=(pending.length?'<div class="panel-desc" style="padding:12px 16px 0">À venir · formations et réunions</div><div class="cc-agenda-list">'+pending.map(agendaCard).join("")+'</div>':'<div class="cc-agenda-empty"><b>Ton agenda est prêt.</b><p>Aucune formation ni réunion n’est planifiée pour le moment. Les formations préparées et les réunions créées depuis Synthèse opérationnelle apparaîtront ici.</p>'+(manager()?'<button class="btn primary" type="button" data-agenda-new>＋ Planifier la première formation</button>':'<span>La chef de plateau ou la RH pourra ajouter les prochaines séances.</span>')+'</div>')+(done.length?'<div class="panel-desc" style="padding:10px 16px 0">Séances réalisées</div><div class="cc-agenda-list">'+done.slice().reverse().map(agendaCard).join("")+'</div>':"");
     renderThemes();
   }
-  function eventById(id) { return (state().trainingAgenda||[]).find((x)=>String(x.id)===String(id)); }
+  function eventById(id) {
+    const value=String(id||"");
+    if(value.startsWith("meeting:")){
+      const sourceId=value.slice("meeting:".length),meeting=(state().meetings||[]).find((x)=>String(x.id)===sourceId);
+      return meeting?{...meeting,id:value,_sourceId:meeting.id,_agendaType:"meeting"}:null;
+    }
+    const item=(state().trainingAgenda||[]).find((x)=>String(x.id)===value);
+    return item?{...item,_agendaType:"training"}:null;
+  }
   function eventDetails(item) {
-    const done=item.status==="completed"||item.status==="Terminée", names=(item.employeeIds||[]).map(personById).filter(Boolean).map(personName);
+    const done=isDone(item),isMeeting=item._agendaType==="meeting";
+    if(isMeeting){
+      const canEdit=manager()&&!done;
+      const body='<p><b>Date :</b> '+esc(dateLabel(item.date))+(item.time?' · '+esc(timeLabel(item.time)):"")+'</p><p><b>Personne / équipe :</b> '+esc(item.employee||"Équipe")+'</p>'+(item.summary?'<div class="cc-observation">'+esc(item.summary)+'</div>':"")+'<p><small>Planifiée par '+esc(item.owner||"l’équipe")+'</small></p>'+(canEdit?'<form class="cc-training-form" data-meeting-edit="'+esc(item._sourceId)+'"><label>Sujet de la réunion<input name="title" maxlength="180" required value="'+esc(item.title||item.kind||"Réunion")+'"></label><label>Date<input type="date" name="date" required value="'+esc(String(item.date||"").slice(0,10))+'"></label><label>Heure<input type="time" name="time" value="'+esc(String(item.time||"").slice(0,5))+'"></label><label>Personne / équipe concernée<input name="employee" maxlength="180" value="'+esc(item.employee||"Équipe")+'"></label><label class="cc-wide">Points à traiter<textarea name="summary" maxlength="1000">'+esc(item.summary||"")+'</textarea></label><button class="btn primary" type="submit">Enregistrer les modifications</button><button class="btn" type="button" data-meeting-delete="'+esc(item._sourceId)+'">Supprimer la réunion</button></form>':"");
+      openDialog(item.title||"Réunion",body);return;
+    }
+    const names=(item.employeeIds||[]).map(personById).filter(Boolean).map(personName);
     const body='<p><b>Date :</b> '+esc(dateLabel(item.date))+(item.time?' · '+esc(timeLabel(item.time)):"")+'</p><p><b>Participants :</b> '+esc(names.join(", ")||(item.employeeNames||[]).join(", ")||"Non précisés")+'</p>'+(item.duration?'<p><b>Durée :</b> '+esc(item.duration)+' minutes</p>':"")+(item.location?'<p><b>Lieu :</b> '+esc(item.location)+'</p>':"")+(item.details?'<p>'+esc(item.details)+'</p>':"")+(done?'<div class="cc-observation"><small>Réalisée le '+esc(dateLabel(item.completedOn||item.completedAt))+' · '+esc(item.trainer||"")+'</small>'+esc(item.completionNotes||"Formation confirmée.")+'</div>':"")+(mayComplete()&&!done?'<form class="cc-training-form" data-training-complete="'+esc(item.id)+'"><label class="cc-wide">Compte rendu / points travaillés<textarea name="notes" maxlength="1200" placeholder="Résumé de la séance, acquis et suite prévue"></textarea></label><button class="btn primary" type="submit">Confirmer la formation terminée</button></form>':"");
     openDialog(item.title||"Formation",body);
+  }
+  function saveMeeting(form) {
+    const data=state(),fd=new FormData(form),id=String(form.dataset.meetingEdit||""),meetings=data.meetings||[],meeting=meetings.find((x)=>String(x.id)===id);
+    if(!meeting||!manager())return;
+    const title=String(fd.get("title")||"").trim(),date=String(fd.get("date")||"").slice(0,10);
+    if(!title||!date){window.crmToast?.("Renseigne le sujet et la date de la réunion.");return;}
+    Object.assign(meeting,{title,date,time:String(fd.get("time")||""),employee:String(fd.get("employee")||"").trim()||"Équipe",summary:String(fd.get("summary")||"").trim(),updatedAt:new Date().toISOString()});
+    const actions=data.synthesisActions||[],action=actions.find((x)=>String(x.meetingId)===id||String(x.key||"")===String(meeting.synthesisActionKey||meeting.synthesisSource||""));
+    if(action)Object.assign(action,{meetingId:meeting.id,meetingDate:date,meetingSummary:meeting.summary,updatedAt:new Date().toISOString()});
+    persist("meetings",meetings);if(action)persist("synthesisActions",actions);
+    closeDialog();renderAgenda();renderThemes();window.crmRenderSynthesis?.();window.crmToast?.("Réunion mise à jour dans l’agenda partagé.");
+  }
+  function deleteMeeting(id) {
+    if(!manager())return;
+    const data=state(),meetings=data.meetings||[],idx=meetings.findIndex((x)=>String(x.id)===String(id));
+    if(idx<0)return;
+    const meeting=meetings[idx],actions=data.synthesisActions||[],action=actions.find((x)=>String(x.meetingId)===String(meeting.id)||String(x.key||"")===String(meeting.synthesisActionKey||meeting.synthesisSource||""));
+    if(!window.confirm("Supprimer cette réunion planifiée ?"))return;
+    meetings.splice(idx,1);
+    if(action)Object.assign(action,{meetingId:null,meetingDate:"",meetingSummary:"",updatedAt:new Date().toISOString()});
+    persist("meetings",meetings);if(action)persist("synthesisActions",actions);
+    closeDialog();renderAgenda();renderThemes();window.crmRenderSynthesis?.();window.crmToast?.("Réunion supprimée de l’agenda.");
   }
   function themeDetails(id) {
     const group=themeGroups().find((x)=>String(x.id)===String(id));if(!group)return;
@@ -267,12 +310,14 @@
       const plan=e.target.closest("[data-theme-plan]");if(plan){const group=themeGroups().find((x)=>String(x.id)===String(plan.dataset.themePlan));const selected=selectedByTheme[plan.dataset.themePlan]||[];if(!selected.length){window.crmToast?.("Clique sur au moins un téléphoniste pour composer le groupe.");return;}if(group)openDialog("Préparer une formation",themeScheduleForm(group));return;}
       const detail=e.target.closest("[data-theme-detail]");if(detail){themeDetails(detail.dataset.themeDetail);return;}
       const agenda=e.target.closest("[data-agenda-detail]");if(agenda){const item=eventById(agenda.dataset.agendaDetail);if(item)eventDetails(item);return;}
+      const removeMeeting=e.target.closest("[data-meeting-delete]");if(removeMeeting){deleteMeeting(removeMeeting.dataset.meetingDelete);return;}
       if(e.target.closest("[data-training-dialog-close]")){closeDialog();return;}
     });
     document.addEventListener("submit",(e)=>{
       const theme=e.target.closest("#ccThemeCreateForm");if(theme){e.preventDefault();createTheme(theme);return;}
       const schedule=e.target.closest("[data-theme-schedule]");if(schedule){e.preventDefault();planTheme(schedule);return;}
       const create=e.target.closest("[data-agenda-create]");if(create){e.preventDefault();createAgenda(create);return;}
+      const meeting=e.target.closest("[data-meeting-edit]");if(meeting){e.preventDefault();saveMeeting(meeting);return;}
       const done=e.target.closest("[data-training-complete]");if(done){e.preventDefault();completeTraining(done);}
     });
     window.setInterval(()=>{wrapSynthesisRenderer();wrapProfileRenderer();ensurePermissionEditor();},1000);
