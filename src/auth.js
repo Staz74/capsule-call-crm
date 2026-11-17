@@ -88,44 +88,47 @@
       "Rôle du caller — donner un avis technique au lieu d’orienter le client"
     ]]
   ];
-  if (!window.ccQualityObservationCategoriesInstalled && typeof window.openModal === "function") {
-    const originalOpenModal = window.openModal;
-    const qualityOptions = qualityObservationGroups.map(([group, labels]) =>
-      '<optgroup label="' + group + '">' + labels.map(label =>
-        '<option value="' + label + '">' + label + '</option>'
-      ).join("") + '</optgroup>'
-    ).join("");
-    const allQualityCategories = qualityObservationGroups.flatMap(([, labels]) => labels);
-    window.openModal = function(type, ...args) {
-      const result = originalOpenModal.apply(this, [type, ...args]);
-      if (type !== "quality") return result;
-      const select = $("modalBody")?.querySelector('select[name="category"]');
-      if (!select) return result;
-      const current = select.value;
-      select.innerHTML = '<option value="" disabled selected>Choisir une catégorie d’observation…</option><option value="Pas besoin de formation">Pas besoin de formation</option>' + qualityOptions + '<option value="Autre">Autre</option>';
-      select.required = true;
-      if (current === "Pas besoin de formation" || current === "Autre" || allQualityCategories.includes(current)) select.value = current;
-      const field = select.closest(".field");
-      const label = field?.querySelector("label");
-      if (label) label.textContent = "Catégorie d’observation";
-      const hint = document.createElement("small");
-      hint.dataset.qualityCategoryHint = "1";
-      hint.textContent = "« Pas besoin de formation » conserve l’écoute sans créer de groupe. « Autre » apparaîtra dans la Synthèse opérationnelle ; précise le point dans l’observation.";
-      hint.style.cssText = "display:block;color:#c9babb;font-size:10px;line-height:1.45;margin-top:5px";
-      select.insertAdjacentElement("afterend", hint);
-      const notes = $("modalBody")?.querySelector('textarea[name="notes"]');
-      const syncOtherRequirement = () => {
-        if (!notes) return;
-        notes.required = select.value === "Autre";
-        notes.placeholder = select.value === "Autre"
-          ? "Décris précisément le fait observé et le comportement à travailler…"
-          : "Faits observés, exemple précis et axe de progression éventuel…";
-      };
-      select.addEventListener("change", syncOtherRequirement);
-      syncOtherRequirement();
-      return result;
+  function applyQualityObservationCategories() {
+    const modalTitle=String($("modalTitle")?.textContent||"").toLocaleLowerCase("fr");
+    if(!modalTitle.includes("écoute qualité"))return;
+    const select=$("modalBody")?.querySelector('select[name="category"]');
+    if(!select||select.dataset.qualityCategoriesApplied==="1")return;
+    const current=select.value;
+    const options=qualityObservationGroups.map(([group,labels])=>'<optgroup label="'+group+'">'+labels.map(label=>'<option value="'+label+'">'+label+'</option>').join("")+'</optgroup>').join("");
+    select.innerHTML='<option value="Pas besoin de formation">Pas besoin de formation</option>'+options+'<option value="Autre">Autre</option>';
+    select.required=true;
+    const valid=qualityObservationGroups.some(([,labels])=>labels.includes(current));
+    select.value=valid||current==="Autre"||current==="Pas besoin de formation"?current:"Pas besoin de formation";
+    const field=select.closest(".field"),label=field?.querySelector("label");
+    if(label)label.textContent="Catégorie d’observation";
+    const hint=document.createElement("small");
+    hint.textContent="« Pas besoin de formation » conserve l’écoute sans créer de groupe. « Autre » apparaîtra dans la Synthèse opérationnelle ; précise le point dans l’observation.";
+    hint.style.cssText="display:block;color:#c9babb;font-size:10px;line-height:1.45;margin-top:5px";
+    select.insertAdjacentElement("afterend",hint);
+    const notes=$("modalBody")?.querySelector('textarea[name="notes"]');
+    const syncOtherRequirement=()=>{
+      if(!notes)return;
+      notes.required=select.value==="Autre";
+      notes.placeholder=select.value==="Autre"?"Décris précisément le fait observé et le comportement à travailler…":"Faits observés, exemple précis et axe de progression éventuel…";
     };
-    window.ccQualityObservationCategoriesInstalled = true;
+    select.addEventListener("change",syncOtherRequirement);
+    syncOtherRequirement();
+    select.dataset.qualityCategoriesApplied="1";
+  }
+  if(!window.ccQualityObservationCategoriesInstalled){
+    if(typeof window.openModal==="function"){
+      const originalOpenModal=window.openModal;
+      window.openModal=function(type,...args){
+        const result=originalOpenModal.apply(this,[type,...args]);
+        if(type==="quality")applyQualityObservationCategories();
+        return result;
+      };
+    }
+    const modalBody=$("modalBody");
+    if(modalBody&&typeof MutationObserver!=="undefined"){
+      new MutationObserver(applyQualityObservationCategories).observe(modalBody,{childList:true,subtree:true});
+    }
+    window.ccQualityObservationCategoriesInstalled=true;
   }
   function normalizeEmployeeStatuses(input) { return (Array.isArray(input)?input:[]).map(employee=>employee?.status==="Actif"?{...employee,status:"Autonome"}:employee); }
   function taskBoardDate() { return typeof dashboardZurichDate === "function" ? dashboardZurichDate() : new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()); }
