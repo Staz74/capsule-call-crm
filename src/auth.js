@@ -1533,7 +1533,7 @@ function setupTaskBoardEnhancements() {
     if (formationAgendaModulePromise) return formationAgendaModulePromise;
     formationAgendaModulePromise = new Promise((resolve) => {
       const script = document.createElement("script");
-      script.src = "./src/formation-agenda.js?v=20261116a";
+      script.src = "./src/formation-agenda.js?v=20261117b";
       script.async = true;
       script.onload = () => resolve(true);
       script.onerror = () => resolve(false);
