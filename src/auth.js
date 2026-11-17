@@ -12,16 +12,16 @@
   // those keys part of the central state reader so every view and sync hook sees them.
   if (!window.ccExtraStateReaderInstalled) {
     const baseGetLocalState = window.crmGetLocalState;
-    const extensionStateKeys = ["synthesisActions","trainingThemes","trainingAgenda","trainingHistory"];
+    const extensionStateKeys = ["synthesisActions","trainingThemes","trainingAgenda","trainingHistory","trainingObservationArchive","trainingObservationArchiveInitialized"];
     window.crmGetLocalState = () => {
       const current = typeof baseGetLocalState === "function" ? (baseGetLocalState() || {}) : {};
       for (const key of extensionStateKeys) {
         try {
           const raw = localStorage.getItem("capsule_" + key);
           if (raw !== null) current[key] = JSON.parse(raw);
-          else if (!Object.prototype.hasOwnProperty.call(current, key)) current[key] = [];
+          else if (!Object.prototype.hasOwnProperty.call(current, key)) current[key] = key === "trainingObservationArchiveInitialized" ? false : [];
         } catch {
-          if (!Object.prototype.hasOwnProperty.call(current, key)) current[key] = [];
+          if (!Object.prototype.hasOwnProperty.call(current, key)) current[key] = key === "trainingObservationArchiveInitialized" ? false : [];
         }
       }
       return current;
@@ -160,7 +160,7 @@
       return true;
     }).map(task => ["En cours","In progress"].includes(String(task.status || "")) ? { ...task, status:"À faire" } : task);
   }
-  const dataKeys = ["employees","candidates","archivedEmployees","archivedCandidates","appPermissions","tasks","taskHistory","qualityHistory","coachingHistory","synthesisActions","onboardingHistory","attendanceHistory","reports","meetings","docs","kpiRows","controlRules","trainingThemes","trainingAgenda","trainingHistory"];
+  const dataKeys = ["employees","candidates","archivedEmployees","archivedCandidates","appPermissions","tasks","taskHistory","qualityHistory","coachingHistory","synthesisActions","onboardingHistory","attendanceHistory","reports","meetings","docs","kpiRows","controlRules","trainingThemes","trainingAgenda","trainingHistory","trainingObservationArchive","trainingObservationArchiveInitialized"];
   const storedOriginal = Storage.prototype.setItem;
   const removedOriginal = Storage.prototype.removeItem;
   const scopedKey = (key) => key.startsWith("capsule_") ? key.slice(8) : (key.startsWith("cc_onboarding_steps_") || key.startsWith("cc_attendance_")) ? "local:" + key : null;
@@ -188,6 +188,9 @@
     storedOriginal.call(this, key, value);
     if (["employees","tasks","kpiRows"].includes(syncKey) || String(syncKey || "").startsWith("local:cc_attendance_")) {
       window.dispatchEvent(new Event("cc:dashboard-data-updated"));
+    }
+    if (["qualityHistory","coachingHistory","reports","meetings"].includes(syncKey)) {
+      window.dispatchEvent(new Event("cc:synthesis-data-updated"));
     }
     if (syncKey && window.crmCloudSave && !(syncKey === "kpiRows" && window.crmBrokerlinkRemoteSave)) {
       let payload = value;
@@ -373,6 +376,7 @@
       cloudBase.set(key, payload);
     }
     cloudReady = true;
+    window.dispatchEvent(new Event("cc:crm-cloud-ready"));
     window.crmReconcileOnboardingProduction?.();
     setSync("Synchronisé");
   }
@@ -469,6 +473,7 @@
   }
   window.crmCurrentRole = () => currentProfile?.role || "";
   window.crmCurrentProfile = () => currentProfile;
+  window.crmCloudIsReady = () => cloudReady;
   window.crmCanPage = () => false;
 
   function renderAccountList(users) {
