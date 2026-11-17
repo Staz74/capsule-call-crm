@@ -925,7 +925,7 @@
     if(employees){window.crmReconcileOnboardingProduction?.();window.renderEmployees?.();window.renderOnboarding?.();window.renderDash?.();window.renderTasks?.();window.crmRenderPerformanceModule?.();window.crmRenderSynthesis?.();}
     if(tasks){window.renderTasks?.();window.renderTaskHistory?.();window.renderDash?.();}
     if(set.has("qualityHistory")||set.has("coachingHistory")){window.renderQualityModule?.();window.renderCoachingModule?.();window.renderQualityMetrics?.();window.crmRenderSynthesis?.();}
-    if(set.has("reports")||set.has("meetings")){window.renderReports?.();window.crmRenderSynthesis?.();}
+    if(set.has("reports")||set.has("meetings")){window.renderReports?.();window.crmRenderSynthesis?.();if(set.has("meetings"))window.crmRenderFormationAgenda?.();}
     if(set.has("docs"))window.renderDocs?.();
     if(set.has("controlRules"))window.renderControlModule?.();
     if(set.has("trainingAgenda"))window.crmRenderFormationAgenda?.();
