@@ -89,10 +89,12 @@
     ]]
   ];
   function applyQualityObservationCategories() {
-    const modalTitle=String($("modalTitle")?.textContent||"").toLocaleLowerCase("fr");
-    if(!modalTitle.includes("écoute qualité"))return;
+    const normalizeCategoryContext=value=>String(value||"").toLocaleLowerCase("fr").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    const modalTitle=normalizeCategoryContext($("modalTitle")?.textContent);
     const select=$("modalBody")?.querySelector('select[name="category"]');
-    if(!select||select.dataset.qualityCategoriesApplied==="1")return;
+    const categoryLabel=normalizeCategoryContext(select?.closest(".field")?.querySelector("label")?.textContent);
+    const isQualityListening=modalTitle.includes("ecoute")||modalTitle.includes("qualite")||categoryLabel.includes("categorie d'observation")||categoryLabel.includes("categorie dobservation");
+    if(!isQualityListening||!select||select.dataset.qualityCategoriesApplied==="1")return;
     const current=select.value;
     const options=qualityObservationGroups.map(([group,labels])=>'<optgroup label="'+group+'">'+labels.map(label=>'<option value="'+label+'">'+label+'</option>').join("")+'</optgroup>').join("");
     select.innerHTML='<option value="Pas besoin de formation">Pas besoin de formation</option>'+options+'<option value="Autre">Autre</option>';
@@ -120,13 +122,13 @@
       const originalOpenModal=window.openModal;
       window.openModal=function(type,...args){
         const result=originalOpenModal.apply(this,[type,...args]);
-        if(type==="quality")applyQualityObservationCategories();
+        applyQualityObservationCategories();
         return result;
       };
     }
     const modalBody=$("modalBody");
     if(modalBody&&typeof MutationObserver!=="undefined"){
-      new MutationObserver(applyQualityObservationCategories).observe(modalBody,{childList:true,subtree:true});
+      new MutationObserver(applyQualityObservationCategories).observe(document.body,{childList:true,subtree:true});
     }
     window.ccQualityObservationCategoriesInstalled=true;
   }
