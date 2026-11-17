@@ -38,7 +38,8 @@
       ".cc-training-dialog::backdrop{background:rgba(8,6,7,.72);backdrop-filter:blur(4px)}.cc-dialog-inner{padding:20px}.cc-dialog-head{display:flex;justify-content:space-between;gap:12px;align-items:start;border-bottom:1px solid #493b3d;padding-bottom:12px;margin-bottom:14px}.cc-dialog-head h2{margin:3px 0 0;color:#f6e8eb}",
       ".cc-dialog-close{border:1px solid #655052;background:#302627;color:#f5e8ea;border-radius:9px;padding:7px 10px;cursor:pointer}.cc-observation-list{display:grid;gap:8px;margin-top:12px}.cc-observation{border-left:3px solid #d8aab4;background:#2b2224;border-radius:0 10px 10px 0;padding:10px 12px;color:#eee0e2}.cc-observation small{display:block;color:#c7b4b7;margin-bottom:4px}",
       ".cc-history-panel{margin-top:24px}.cc-history-list{display:grid;gap:9px}.cc-history-item{border:1px solid #4d3f41;border-radius:11px;background:rgba(50,38,40,.55);padding:11px 13px}.cc-history-item b{color:#f0d4da}.cc-history-item p{margin:5px 0 0;color:#d1c1c2;line-height:1.45}",
-      ".cc-agenda-person-list{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:7px}@media(max-width:720px){.cc-agenda-event{grid-template-columns:1fr;gap:7px}.cc-agenda-date{border:0;border-bottom:1px solid #5c484a;padding:0 0 7px}.cc-training-form{grid-template-columns:1fr}.cc-training-form label.cc-wide{grid-column:auto}.cc-training-dialog{width:auto}}"
+      ".cc-synth-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin:0 0 16px}.cc-synth-stat{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border:1px solid #493b3e;border-radius:14px;background:linear-gradient(130deg,rgba(236,190,198,.08),rgba(31,27,28,.96) 75%)}.cc-synth-stat small{display:block;color:#bca9ac}.cc-synth-stat strong{display:block;font-size:24px}.cc-synth-stat em{font-style:normal;color:#f2c8d0;background:#3b2d30;border:1px solid #67474e;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;white-space:nowrap}",
+      "#ccSynthesisExperience{display:grid;gap:14px}.cc-training-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cc-training-card{--cc-accent:#dfa04e;position:relative;overflow:hidden}.cc-training-card:before{content:'';position:absolute;inset:0 auto 0 0;width:4px;background:var(--cc-accent)}.cc-training-card .theme-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.cc-training-card[data-priority=high]{--cc-accent:#c85c68}.cc-training-card[data-priority=medium]{--cc-accent:#dfa04e}.cc-training-card[data-priority=low]{--cc-accent:#4aa678}.cc-training-card .cc-topic-origin{color:var(--cc-accent)}.cc-theme-badge{border:1px solid color-mix(in srgb,var(--cc-accent) 55%,#493b3e);color:var(--cc-accent);background:color-mix(in srgb,var(--cc-accent) 13%,#211c1d);border-radius:999px;padding:5px 9px;font-size:10px;font-weight:850;white-space:nowrap}.cc-training-card .cc-person-chip{position:relative;padding-left:28px}.cc-training-card .cc-person-chip:before{content:'+';position:absolute;left:9px;width:14px;height:14px;border-radius:50%;display:grid;place-items:center;background:#473a3d;color:#d3bdc0;font-size:12px;font-weight:900}.cc-training-card .cc-person-chip[aria-pressed=true]{background:linear-gradient(135deg,rgba(233,195,202,.28),rgba(91,58,66,.82));color:#fff1f3}.cc-training-card .cc-person-chip[aria-pressed=true]:before{content:'✓';background:#e9c3ca;color:#302326;font-size:10px}.cc-theme-foot{border-top:1px solid #48393d;margin-top:12px;padding-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.cc-theme-selection{color:#e9c3ca;font-weight:800;margin-right:auto;font-size:11px}.cc-prepared-title{font-size:16px;margin:6px 2px 0;color:#f2e5e7}.cc-prepared-list{display:grid;gap:9px;padding:14px 16px}.cc-prepared-empty{padding:18px;color:#cbbfc0;border:1px dashed #604f50;border-radius:12px;margin:14px 16px}.cc-agenda-person-list{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:7px}@media(max-width:850px){.cc-training-grid{grid-template-columns:1fr}.cc-synth-stats{grid-template-columns:1fr}}@media(max-width:720px){.cc-agenda-event{grid-template-columns:1fr;gap:7px}.cc-agenda-date{border:0;border-bottom:1px solid #5c484a;padding:0 0 7px}.cc-training-form{grid-template-columns:1fr}.cc-training-form label.cc-wide{grid-column:auto}.cc-training-dialog{width:auto}}"
     ].join("");
     document.head.append(style);
   }
@@ -55,15 +56,17 @@
     }
     if (!$("screen-formationAgenda")) {
       const screen = document.createElement("section"); screen.className = "screen"; screen.id = "screen-formationAgenda";
-      screen.innerHTML = '<div class="head"><div><div class="eyebrow">ACCOMPAGNEMENT · FORMATION</div><h1>Formations & agenda</h1><div class="sub">Le calendrier commun des formations, les groupes prévus et les séances réalisées.</div></div></div><div class="panel"><div class="panel-head"><div><div class="panel-title">Agenda partagé</div><div class="panel-desc">La RH et la chef de plateau peuvent planifier. La chef de plateau confirme les séances réalisées ; le directeur opérationnel les consulte.</div></div></div><div class="cc-agenda-toolbar" id="ccAgendaSummary"></div><div id="ccAgendaCreate"></div><div id="ccAgendaList"></div></div>';
+      screen.innerHTML = '<div class="head"><div><div class="eyebrow">ACCOMPAGNEMENT · FORMATION</div><h1>Formations & agenda</h1><div class="sub">Le calendrier commun des formations, les groupes prévus et les séances réalisées.</div></div><button class="btn primary" type="button" data-agenda-new>＋ Planifier une formation</button></div><div class="panel"><div class="panel-head"><div><div class="panel-title">Agenda partagé</div><div class="panel-desc">La RH et la chef de plateau peuvent planifier. La chef de plateau confirme les séances réalisées ; le directeur opérationnel les consulte.</div></div></div><div class="cc-agenda-toolbar" id="ccAgendaSummary"></div><div id="ccAgendaCreate"></div><div id="ccAgendaList"></div></div>';
       page.append(screen);
     }
-    if (!document.querySelector("#screen-synthesis #ccTrainingThemes")) {
-      const host = document.createElement("section"); host.id = "ccTrainingThemes"; host.className = "panel";
-      host.innerHTML = '<div class="panel-head"><div><div class="panel-title">Thèmes à travailler en formation</div><div class="panel-desc">Regroupe les lacunes récurrentes, choisis les téléphonistes concernés, puis planifie une séance.</div></div></div><div class="cc-training-form" style="margin:0 14px 8px"><label>Ajouter un thème libre<input name="themeTitle" form="ccThemeCreateForm" maxlength="100" placeholder="Ex. découverte du besoin" required></label><label>Description<textarea name="themeDetails" form="ccThemeCreateForm" maxlength="500" placeholder="Objectif ou point à travailler"></textarea></label><form id="ccThemeCreateForm" class="cc-theme-create-form"><button class="btn primary" type="submit">＋ Créer le thème</button></form></div><div id="ccThemeGroups" class="cc-training-grid"></div>';
-      const meetings = document.querySelector("#screen-synthesis .synthesis-meetings");
-      if (meetings) meetings.insertAdjacentElement("beforebegin", host);
-      else $("screen-synthesis")?.append(host);
+    const oldThemeHost=$("ccTrainingThemes"); if(oldThemeHost)oldThemeHost.remove();
+    const synthesis=document.querySelector("#screen-synthesis");
+    if(synthesis&&!$("ccSynthesisExperience")){
+      const subtitle=synthesis.querySelector(".head .sub");if(subtitle)subtitle.textContent="Regroupe les observations récurrentes, choisis les téléphonistes concernés et prépare les formations ciblées.";
+      [".synthesis-filter-panel",".synthesis-summary","#synthesisList",".synthesis-meetings"].forEach((selector)=>{const node=synthesis.querySelector(selector);if(node){node.hidden=true;node.style.display="none";}});
+      const host=document.createElement("div");host.id="ccSynthesisExperience";
+      host.innerHTML='<div class="cc-synth-stats" id="ccSynthesisStats"></div><section class="panel cc-synth-problems"><div class="panel-head"><div><div class="panel-title">Problématiques observées</div><div class="panel-desc">Clique sur un thème pour lire les observations. Clique sur les noms pour choisir les téléphonistes du groupe.</div></div><button type="button" class="btn primary" data-theme-add>＋ Ajouter un thème</button></div><div id="ccThemeGroups" class="cc-training-grid"></div></section><h2 class="cc-prepared-title">Formations préparées pour le Directeur opérationnel</h2><section class="panel"><div class="panel-head"><div><div class="panel-title">Groupes et prochaines séances</div><div class="panel-desc">Toute formation planifiée apparaît aussi dans le module Formations & agenda.</div></div><span class="pill" id="ccPreparedCount">0 groupe</span></div><div id="ccPreparedTrainingList"></div></section>';
+      const head=synthesis.querySelector(".head");if(head)head.insertAdjacentElement("afterend",host);else synthesis.prepend(host);
     }
     return true;
   }
@@ -97,11 +100,12 @@
     const grouped = new Map();
     observations().forEach((x) => {
       const key = x.topic.toLocaleLowerCase("fr").replace(/\s+/g," ").trim() || "observation";
-      if (!grouped.has(key)) grouped.set(key,{id:"topic-"+hash(key),title:x.topic,details:"",suggested:true,items:[],employeeIds:[]});
+      if (!grouped.has(key)) grouped.set(key,{id:"topic-"+hash(key),title:x.topic,details:"",suggested:true,priority:"low",items:[],employeeIds:[]});
       const group=grouped.get(key); group.items.push(x); if(x.employeeId&&!group.employeeIds.includes(x.employeeId))group.employeeIds.push(x.employeeId);
     });
+    grouped.forEach((group)=>{group.priority=group.items.length>=6?"high":group.items.length>=3?"medium":"low";});
     const saved=state().trainingThemes||[];
-    const custom=saved.map((x) => ({id:String(x.id),title:String(x.title||"Thème de formation"),details:String(x.details||""),suggested:false,items:observations().filter(o=>(x.observationIds||[]).includes(o.id)),employeeIds:(x.employeeIds||[]).map(String)}));
+    const custom=saved.map((x) => ({id:String(x.id),title:String(x.title||"Thème de formation"),details:String(x.details||""),priority:x.priority||"medium",suggested:false,items:observations().filter(o=>(x.observationIds||[]).includes(o.id)),employeeIds:(x.employeeIds||[]).map(String)}));
     return [...custom,...grouped.values()].sort((a,b) => Number(b.items.length)-Number(a.items.length)||a.title.localeCompare(b.title,"fr"));
   }
   function chips(group) {
@@ -115,13 +119,18 @@
   }
   function themeScheduleForm(group) {
     const ids=selectedByTheme[group.id]||[];
-    return '<form class="cc-training-form" data-theme-schedule="'+esc(group.id)+'"><label>Date<input type="date" name="date" value="'+today()+'" required></label><label>Heure<input type="time" name="time"></label><label>Durée (minutes)<input type="number" name="duration" min="15" max="480" value="60"></label><label>Lieu / lien<input name="location" maxlength="180" placeholder="Salle ou lien de réunion"></label><label class="cc-wide">Objectif de la séance<textarea name="details" maxlength="1000">'+esc(group.details||"")+'</textarea></label><button class="btn primary" type="submit">Planifier pour '+ids.length+' personne(s)</button><button class="btn" type="button" data-theme-cancel="'+esc(group.id)+'">Annuler</button></form>';
+    const names=ids.map(personById).filter(Boolean).map(personName);
+    return '<form class="cc-training-form" data-theme-schedule="'+esc(group.id)+'"><p class="cc-wide"><b>Participants :</b> '+esc(names.join(", "))+'</p><label>Date<input type="date" name="date" value="'+today()+'" required></label><label>Heure<input type="time" name="time"></label><label>Durée (minutes)<input type="number" name="duration" min="15" max="480" value="60"></label><label>Lieu / lien<input name="location" maxlength="180" placeholder="Salle ou lien de réunion"></label><label class="cc-wide">Objectif de la séance<textarea name="details" maxlength="1000">'+esc(group.details||"")+'</textarea></label><button class="btn primary" type="submit">Ajouter à l’agenda du directeur</button><button class="btn" type="button" data-training-dialog-close>Annuler</button></form>';
   }
   function renderThemes() {
     const host=$("ccThemeGroups"); if(!host)return;
     const groups=themeGroups();
-    if(!groups.length){host.innerHTML='<div class="cc-agenda-empty">Les observations des écoutes et des coachings apparaîtront ici sous forme de thèmes. Tu peux aussi créer un thème libre ci-dessus.</div>';return;}
-    host.innerHTML=groups.map((g) => '<article class="cc-training-card"><span class="cc-topic-origin">'+(g.suggested?g.items.length+' observation(s)':'Thème personnalisé')+'</span><h3><button type="button" class="cc-theme-title" data-theme-detail="'+esc(g.id)+'">'+esc(g.title)+'</button></h3><p>'+esc(g.details||g.items[0]?.text||"Choisis les personnes à réunir autour de ce thème.")+'</p>'+chips(g)+'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-theme-plan="'+esc(g.id)+'">Former ce groupe</button></div>'+(openedSchedule===g.id?themeScheduleForm(g):"")+'</article>').join("");
+    const stats=$("ccSynthesisStats"),uniquePeople=new Set(groups.flatMap((g)=>g.employeeIds||[])),prepared=(state().trainingAgenda||[]).filter((x)=>x.status!=="completed"&&x.status!=="Terminée");
+    if(stats)stats.innerHTML='<div class="cc-synth-stat"><div><small>Thèmes à travailler</small><strong>'+groups.length+'</strong></div><em>'+groups.filter((x)=>x.priority==="high").length+' prioritaires</em></div><div class="cc-synth-stat"><div><small>Téléphonistes concernés</small><strong>'+uniquePeople.size+'</strong></div><em>sur les observations</em></div><div class="cc-synth-stat"><div><small>Groupes préparés</small><strong>'+prepared.length+'</strong></div><em>à l’agenda du directeur</em></div>';
+    const count=$("ccPreparedCount");if(count)count.textContent=prepared.length+" groupe(s)";
+    const preparedHost=$("ccPreparedTrainingList");if(preparedHost)preparedHost.innerHTML=prepared.length?'<div class="cc-prepared-list">'+prepared.map(agendaCard).join("")+'</div>':'<div class="cc-prepared-empty">Aucune formation préparée pour le moment. Sélectionne un thème, choisis les téléphonistes concernés, puis clique sur « Former le groupe ».</div>';
+    if(!groups.length){host.innerHTML='<div class="cc-prepared-empty">Aucune problématique n’est encore recensée. Dès qu’une écoute, un coaching, un rapport ou une réunion contient un point lié à un téléphoniste, il sera regroupé ici. Tu peux aussi créer un thème libre.</div>';return;}
+    host.innerHTML=groups.map((g) => {const selected=(selectedByTheme[g.id]||[]).length,label=g.priority==="high"?"Prioritaire":g.priority==="medium"?"À travailler":"Suivi léger",scope=g.suggested?g.employeeIds.length+" téléphoniste(s) concerné(s)":"Sélection libre des téléphonistes";return '<article class="cc-training-card" data-priority="'+esc(g.priority||"medium")+'"><div class="theme-head"><div><span class="cc-topic-origin">'+(g.suggested?g.items.length+' observation(s)':'Thème personnalisé')+' · '+scope+'</span><h3><button type="button" class="cc-theme-title" data-theme-detail="'+esc(g.id)+'">'+esc(g.title)+'</button></h3></div><span class="cc-theme-badge">'+label+'</span></div><p>'+esc(g.details||g.items[0]?.text||"Clique sur les noms pour composer un groupe ciblé.")+'</p><small class="hint">Clique sur les noms pour choisir les participants</small>'+chips(g)+'<div class="cc-theme-foot"><span class="cc-theme-selection">'+selected+' sélectionné(s) sur '+(g.suggested?g.employeeIds.length:people().length)+'</span><button type="button" class="btn" data-theme-detail="'+esc(g.id)+'">Voir le détail</button><button class="btn primary" type="button" data-theme-plan="'+esc(g.id)+'">'+(selected?"Former le groupe ("+selected+")":"Choisir les téléphonistes")+'</button></div></article>';}).join("");
   }
   function agendaCard(item) {
     const done=item.status==="completed"||item.status==="Terminée";
@@ -130,9 +139,12 @@
     return '<button type="button" class="cc-agenda-event" data-agenda-detail="'+esc(item.id)+'"><span class="cc-agenda-date">'+esc(dateLabel(item.date))+(item.time?'<br><small>'+esc(timeLabel(item.time))+'</small>':"")+'</span><span><h3>'+esc(item.title||"Formation")+'</h3><span class="cc-agenda-meta">'+esc(attendeeLabel)+(item.location?" · "+esc(item.location):"")+'</span></span><span class="cc-agenda-status '+(done?"done":"")+'">'+(done?"Terminée":item.date<today()?"À reprogrammer":"Planifiée")+'</span></button>';
   }
   function newAgendaForm() {
-    if(!manager())return "";
+    document.querySelectorAll("[data-agenda-new]").forEach((button)=>button.hidden=!manager());
+    return "";
+  }
+  function agendaCreateForm() {
     const list=people();
-    return '<details style="margin:8px 16px 0"><summary class="btn">＋ Planifier une formation</summary><form class="cc-training-form" data-agenda-create><label>Thème<input name="title" maxlength="120" required placeholder="Sujet de la formation"></label><label>Date<input type="date" name="date" value="'+today()+'" required></label><label>Heure<input type="time" name="time"></label><label>Durée (minutes)<input type="number" name="duration" min="15" max="480" value="60"></label><label>Lieu / lien<input name="location" maxlength="180" placeholder="Salle ou lien de réunion"></label><label class="cc-wide">Objectif / préparation<textarea name="details" maxlength="1000"></textarea></label><div class="cc-agenda-person-list">'+list.map((e)=>'<label class="cc-person-chip"><input type="checkbox" data-agenda-person value="'+esc(String(e.id))+'"> '+esc(personName(e))+'</label>').join("")+'</div><button class="btn primary" type="submit">Ajouter à l’agenda</button></form></details>';
+    return '<form class="cc-training-form" data-agenda-create><label>Thème<input name="title" maxlength="120" required placeholder="Sujet de la formation"></label><label>Date<input type="date" name="date" value="'+today()+'" required></label><label>Heure<input type="time" name="time"></label><label>Durée (minutes)<input type="number" name="duration" min="15" max="480" value="60"></label><label>Lieu / lien<input name="location" maxlength="180" placeholder="Salle ou lien de réunion"></label><label class="cc-wide">Objectif / préparation<textarea name="details" maxlength="1000"></textarea></label><div class="cc-agenda-person-list">'+list.map((e)=>'<label class="cc-person-chip"><input type="checkbox" data-agenda-person value="'+esc(String(e.id))+'"> '+esc(personName(e))+'</label>').join("")+'</div><button class="btn primary" type="submit">Ajouter à l’agenda partagé</button><button class="btn" type="button" data-training-dialog-close>Annuler</button></form>';
   }
   function renderAgenda() {
     const host=$("ccAgendaList"); if(!host)return;
@@ -143,7 +155,8 @@
     const todays=pending.filter((x)=>String(x.date||"").slice(0,10)===today()).length;
     const summary=$("ccAgendaSummary"); if(summary)summary.innerHTML='<span class="cc-agenda-count">'+todays+' aujourd’hui</span><span class="cc-agenda-count">'+pending.length+' à venir / à reprogrammer</span><span class="cc-agenda-count">'+done.length+' réalisée(s)</span>';
     const form=$("ccAgendaCreate");if(form)form.innerHTML=newAgendaForm();
-    host.innerHTML=(pending.length?'<div class="panel-desc" style="padding:12px 16px 0">À venir</div><div class="cc-agenda-list">'+pending.map(agendaCard).join("")+'</div>':'<div class="cc-agenda-empty">Aucune formation planifiée pour le moment.</div>')+(done.length?'<div class="panel-desc" style="padding:10px 16px 0">Formations réalisées</div><div class="cc-agenda-list">'+done.slice().reverse().map(agendaCard).join("")+'</div>':"");
+    host.innerHTML=(pending.length?'<div class="panel-desc" style="padding:12px 16px 0">À venir</div><div class="cc-agenda-list">'+pending.map(agendaCard).join("")+'</div>':'<div class="cc-agenda-empty"><b>Ton agenda de formation est prêt.</b><p>Aucune formation n’est planifiée pour le moment. Les séances préparées dans Synthèse opérationnelle apparaîtront ici.</p>'+(manager()?'<button class="btn primary" type="button" data-agenda-new>＋ Planifier la première formation</button>':'<span>La chef de plateau ou la RH pourra ajouter les prochaines séances.</span>')+'</div>')+(done.length?'<div class="panel-desc" style="padding:10px 16px 0">Formations réalisées</div><div class="cc-agenda-list">'+done.slice().reverse().map(agendaCard).join("")+'</div>':"");
+    renderThemes();
   }
   function eventById(id) { return (state().trainingAgenda||[]).find((x)=>String(x.id)===String(id)); }
   function eventDetails(item) {
@@ -210,25 +223,28 @@
     };
     window.ccFormationAgendaPermissionWrapped=true;
   }
+  function themeCreateForm() {
+    return '<form class="cc-training-form" id="ccThemeCreateForm"><label class="cc-wide">Thème / objectif<input name="themeTitle" maxlength="100" required placeholder="Ex. découverte du besoin"></label><label class="cc-wide">Description de la lacune<textarea name="themeDetails" maxlength="500" placeholder="Décris ce qui est observé et ce qui doit progresser"></textarea></label><label>Priorité<select name="priority"><option value="high">Prioritaire</option><option value="medium" selected>À travailler</option><option value="low">Suivi léger</option></select></label><button class="btn primary" type="submit">Créer le thème</button></form>';
+  }
   function createTheme(form) {
-    const fd=new FormData(form),title=String(fd.get("themeTitle")||"").trim(),details=String(fd.get("themeDetails")||"").trim();
+    const fd=new FormData(form),title=String(fd.get("themeTitle")||"").trim(),details=String(fd.get("themeDetails")||"").trim(),priority=String(fd.get("priority")||"medium");
     if(!title)return;
-    const themes=state().trainingThemes||[];themes.unshift({id:"theme-"+Date.now(),title,details,createdAt:new Date().toISOString(),createdBy:currentUserName(),employeeIds:[]});
-    persist("trainingThemes",themes);form.reset();renderThemes();window.crmToast?.("Thème de formation ajouté.");
+    const themes=state().trainingThemes||[];themes.unshift({id:"theme-"+Date.now(),title,details,priority,createdAt:new Date().toISOString(),createdBy:currentUserName(),employeeIds:[]});
+    persist("trainingThemes",themes);form.reset();closeDialog();renderThemes();window.crmToast?.("Thème de formation ajouté.");
   }
   function planTheme(form) {
     const fd=new FormData(form),id=form.dataset.themeSchedule,group=themeGroups().find((x)=>String(x.id)===String(id)),employeeIds=(selectedByTheme[id]||[]).slice();
     if(!group||!fd.get("date")||!employeeIds.length){window.crmToast?.("Sélectionne au moins un téléphoniste et une date.");return;}
     const agenda=state().trainingAgenda||[];
     agenda.push({id:"training-"+Date.now(),title:group.title,themeId:id,details:String(fd.get("details")||group.details||""),date:String(fd.get("date")),time:String(fd.get("time")||""),duration:Number(fd.get("duration")||60),location:String(fd.get("location")||""),employeeIds,employeeNames:employeeIds.map(personById).filter(Boolean).map(personName),status:"planned",createdBy:currentUserName(),createdAt:new Date().toISOString()});
-    persist("trainingAgenda",agenda);openedSchedule="";selectedByTheme[id]=[];renderThemes();renderAgenda();window.crmToast?.("Formation ajoutée à l’agenda partagé.");
+    persist("trainingAgenda",agenda);openedSchedule="";selectedByTheme[id]=[];closeDialog();renderThemes();renderAgenda();window.crmToast?.("Formation ajoutée à l’agenda partagé.");
   }
   function createAgenda(form) {
     const fd=new FormData(form),employeeIds=[...form.querySelectorAll("[data-agenda-person]:checked")].map((x)=>String(x.value));
     if(!String(fd.get("title")||"").trim()||!fd.get("date")||!employeeIds.length){window.crmToast?.("Renseigne le thème, la date et au moins un téléphoniste.");return;}
     const agenda=state().trainingAgenda||[];
     agenda.push({id:"training-"+Date.now(),title:String(fd.get("title")).trim(),details:String(fd.get("details")||""),date:String(fd.get("date")),time:String(fd.get("time")||""),duration:Number(fd.get("duration")||60),location:String(fd.get("location")||""),employeeIds,employeeNames:employeeIds.map(personById).filter(Boolean).map(personName),status:"planned",createdBy:currentUserName(),createdAt:new Date().toISOString()});
-    persist("trainingAgenda",agenda);renderAgenda();window.crmToast?.("Formation ajoutée à l’agenda partagé.");
+    persist("trainingAgenda",agenda);closeDialog();renderAgenda();window.crmToast?.("Formation ajoutée à l’agenda partagé.");
   }
   function completeTraining(form) {
     const item=eventById(form.dataset.trainingComplete);if(!item||!mayComplete())return;
@@ -246,8 +262,9 @@
     document.addEventListener("click",(e)=>{
       const person=e.target.closest("[data-theme-person]");
       if(person){const id=person.dataset.themePerson,employeeId=String(person.dataset.employeeId),current=selectedByTheme[id]||[];selectedByTheme[id]=current.includes(employeeId)?current.filter((x)=>x!==employeeId):[...current,employeeId];renderThemes();return;}
-      const plan=e.target.closest("[data-theme-plan]");if(plan){openedSchedule=plan.dataset.themePlan;renderThemes();return;}
-      const cancel=e.target.closest("[data-theme-cancel]");if(cancel){openedSchedule="";renderThemes();return;}
+      const add=e.target.closest("[data-theme-add]");if(add){openDialog("Ajouter un thème",themeCreateForm());return;}
+      const newAgenda=e.target.closest("[data-agenda-new]");if(newAgenda){if(manager())openDialog("Planifier une formation",agendaCreateForm());return;}
+      const plan=e.target.closest("[data-theme-plan]");if(plan){const group=themeGroups().find((x)=>String(x.id)===String(plan.dataset.themePlan));const selected=selectedByTheme[plan.dataset.themePlan]||[];if(!selected.length){window.crmToast?.("Clique sur au moins un téléphoniste pour composer le groupe.");return;}if(group)openDialog("Préparer une formation",themeScheduleForm(group));return;}
       const detail=e.target.closest("[data-theme-detail]");if(detail){themeDetails(detail.dataset.themeDetail);return;}
       const agenda=e.target.closest("[data-agenda-detail]");if(agenda){const item=eventById(agenda.dataset.agendaDetail);if(item)eventDetails(item);return;}
       if(e.target.closest("[data-training-dialog-close]")){closeDialog();return;}
