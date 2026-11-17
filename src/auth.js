@@ -1553,7 +1553,9 @@ function setupTaskBoardEnhancements() {
     if (formationAgendaModulePromise) return formationAgendaModulePromise;
     formationAgendaModulePromise = new Promise((resolve) => {
       const script = document.createElement("script");
-      script.src = "./src/formation-agenda.js?v=20261117b";
+      const authAsset = [...document.scripts].find(item => item.src.includes("/src/auth.js"));
+      const assetVersion = authAsset ? new URL(authAsset.src, location.href).searchParams.get("v") : "";
+      script.src = "./src/formation-agenda.js?v=" + encodeURIComponent(assetVersion || "20261117c");
       script.async = true;
       script.onload = () => resolve(true);
       script.onerror = () => resolve(false);
