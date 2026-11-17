@@ -88,6 +88,7 @@
       "Rôle du caller — donner un avis technique au lieu d’orienter le client"
     ]]
   ];
+  window.ccQualityObservationGroups=qualityObservationGroups.map(([theme,labels])=>[theme,labels.slice()]);
   function applyQualityObservationCategories() {
     const normalizeCategoryContext=value=>String(value||"").toLocaleLowerCase("fr").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
     const modalTitle=normalizeCategoryContext($("modalTitle")?.textContent);
