@@ -33,7 +33,9 @@
       ".cc-training-form input,.cc-training-form textarea,.cc-training-form select{width:100%;box-sizing:border-box;border:1px solid #665052;border-radius:9px;background:#211b1c;color:#f7eeee;padding:9px;font:inherit}.cc-training-form textarea{min-height:68px;resize:vertical}.cc-training-form button{justify-self:start}",
       ".cc-agenda-toolbar{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px 2px}.cc-agenda-count{border:1px solid #5a4749;border-radius:999px;padding:7px 11px;background:#2b2224;color:#efdee1;font-size:12px}.cc-agenda-list{display:grid;gap:10px;padding:14px 16px 18px}",
       ".cc-agenda-event{display:grid;grid-template-columns:100px minmax(0,1fr) auto;gap:12px;align-items:center;cursor:pointer;text-align:left;font:inherit}.cc-agenda-event:hover{border-color:#d4a4ad;transform:translateY(-1px)}.cc-agenda-date{border-right:1px solid #5c484a;padding-right:12px;color:#e8c3ca;font-weight:700;font-size:13px}",
-      ".cc-agenda-meta{font-size:12px;color:#c6b6b7}.cc-agenda-status{font-size:11px;color:#f2d79c;background:#433521;border-radius:999px;padding:6px 9px;white-space:nowrap}.cc-agenda-status.done{color:#b9e1c7;background:#1f3a2b}",
+      ".cc-agenda-meta{font-size:12px;color:#c6b6b7}.cc-agenda-status{font-size:11px;color:#f2d79c;background:#433521;border-radius:999px;padding:6px 9px;white-space:nowrap}.cc-agenda-status.done{color:#b9e1c7;background:#1f3a2b}.cc-agenda-status.not-done{color:#ffd5d9;background:#512d32}",
+      ".cc-training-result-actions{display:flex;gap:8px;flex-wrap:wrap}.cc-result-pill{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;white-space:nowrap}.cc-result-pill.done{color:#b9e1c7;background:#1f3a2b;border:1px solid #3d7259}.cc-result-pill.not-done{color:#ffd5d9;background:#512d32;border:1px solid #8a4e55}.cc-result-pill.pending{color:#f2d79c;background:#433521;border:1px solid #735a35}.cc-training-result-current{margin:12px 0;color:#eee1e3}",
+      ".cc-training-history{margin:16px 0 2px;padding:16px;border:1px solid #493b3e;border-radius:14px;background:rgba(25,21,22,.82)}.cc-training-history-head{display:flex;align-items:start;justify-content:space-between;gap:12px;margin-bottom:12px}.cc-training-history-head h3{margin:0;color:#f4e8ea;font-size:16px}.cc-training-history-head p{margin:5px 0 0;color:#bcaeb0;font-size:11px;line-height:1.5}.cc-training-history-list{display:grid;gap:7px;max-height:520px;overflow:auto}.cc-training-history-row{width:100%;display:grid;grid-template-columns:135px minmax(0,1fr) auto;gap:12px;align-items:center;text-align:left;border:1px solid #493b3e;border-radius:10px;background:#2b2425;color:#f4e8ea;padding:10px 12px;cursor:pointer;font:inherit}.cc-training-history-row:hover{border-color:#d4a4ad;background:#302729}.cc-training-history-row .cc-agenda-date{font-size:11px}.cc-training-history-row .cc-agenda-date small{display:block;margin-top:3px;color:#c6b6b7}.cc-training-history-detail{min-width:0;display:grid;gap:3px}.cc-training-history-detail strong{font-size:12px}.cc-training-history-detail small,.cc-training-history-detail em{overflow:hidden;text-overflow:ellipsis;color:#c6b6b7;font-size:10px;font-style:normal;white-space:nowrap}.cc-training-history-detail em{color:#d8bec3}@media(max-width:600px){.cc-training-history-row{grid-template-columns:1fr auto;gap:7px}.cc-training-history-row .cc-agenda-date{border:0;padding:0}.cc-training-history-detail{grid-column:1/-1;grid-row:2}}",
       ".cc-agenda-week-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(230px,.75fr);gap:14px;padding:14px 16px 18px}.cc-agenda-week-main,.cc-agenda-side{border:1px solid #493b3e;border-radius:14px;background:rgba(25,21,22,.7);overflow:hidden}.cc-agenda-week-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 13px;background:#272021;border-bottom:1px solid #493b3e}.cc-agenda-week-toolbar strong{display:block;color:#f4e8ea}.cc-agenda-week-toolbar small{display:block;color:#beadaf;margin-top:3px}.cc-agenda-week-controls{display:flex;gap:6px;align-items:center}.cc-agenda-week-controls button{border:1px solid #59474a;background:#34292b;color:#f3dce1;border-radius:8px;padding:6px 9px;cursor:pointer;font:inherit}.cc-agenda-week-grid-wrap{overflow-x:auto}.cc-agenda-week-grid{display:grid;grid-template-columns:repeat(5,minmax(112px,1fr));min-width:610px}.cc-agenda-week-day{min-height:190px;padding:9px;border-right:1px solid #3f3436}.cc-agenda-week-day:last-child{border-right:0}.cc-agenda-week-dayhead{min-height:34px;border-bottom:1px solid #3f3436;padding:0 1px 8px;color:#c9b9bb;font-size:11px}.cc-agenda-week-dayhead strong{display:block;color:#f1e5e7;font-size:12px;text-transform:capitalize}.cc-agenda-week-events{display:grid;gap:7px;padding-top:8px}.cc-week-event{width:100%;text-align:left;border:1px solid #685058;background:linear-gradient(135deg,#3a2b30,#2a2224);color:#f4e8ea;border-radius:9px;padding:8px;cursor:pointer;font:inherit}.cc-week-event:hover{border-color:#e7bec6;transform:translateY(-1px)}.cc-week-event.meeting{border-color:#52687b;background:linear-gradient(135deg,#273642,#252225)}.cc-week-event.done{border-color:#3d7259;background:#203a30}.cc-week-event-time{display:block;color:#e7b9c2;font-size:10px;font-weight:800;margin-bottom:3px}.cc-week-event.meeting .cc-week-event-time{color:#a8d2f2}.cc-week-event strong{display:block;font-size:11px;line-height:1.35}.cc-week-event small{display:block;color:#c9b9bb;font-size:10px;margin-top:4px;line-height:1.35}.cc-week-empty{color:#786b6d;font-size:11px;padding:8px 2px}.cc-agenda-side{padding:13px}.cc-agenda-side h3{margin:0 0 4px;color:#f3e5e8;font-size:14px}.cc-agenda-side>p{margin:0 0 11px;color:#bbaeb0;font-size:11px;line-height:1.45}.cc-agenda-upcoming-list{display:grid;gap:7px}.cc-agenda-upcoming{width:100%;display:grid;grid-template-columns:42px minmax(0,1fr);gap:9px;align-items:center;text-align:left;border:1px solid #493b3e;background:#2b2425;color:#f4e8ea;border-radius:10px;padding:8px;cursor:pointer;font:inherit}.cc-agenda-upcoming:hover{border-color:#d4a4ad}.cc-agenda-upcoming-date{text-align:center;border-radius:8px;background:#3b2d30;color:#f1cbd2;padding:5px 3px;font-size:9px;text-transform:uppercase}.cc-agenda-upcoming-date strong{display:block;font-size:15px}.cc-agenda-upcoming-title{display:block;font-size:11px;font-weight:800}.cc-agenda-upcoming-meta{display:block;margin-top:3px;color:#bcadaf;font-size:10px}.cc-agenda-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.cc-agenda-actions .danger{border-color:#78474d;color:#ffd9de;background:#3a2528}.cc-agenda-history{border-top:1px solid #493b3e;margin-top:12px;padding-top:12px}.cc-agenda-history>summary{cursor:pointer;color:#e6c3ca;font-size:12px;font-weight:800}.cc-agenda-history-list{display:grid;gap:7px;margin-top:9px}.cc-agenda-empty-week{padding:14px;color:#bcaeb0;font-size:12px}",
       "@media(max-width:900px){.cc-agenda-week-layout{grid-template-columns:1fr}.cc-agenda-week-grid{grid-template-columns:repeat(5,minmax(105px,1fr))}}@media(max-width:720px){.cc-agenda-week-layout{padding:10px}.cc-agenda-week-toolbar{align-items:flex-start;flex-direction:column}.cc-agenda-week-controls{width:100%;justify-content:space-between}}",
       ".cc-past-observations{margin:14px;padding:12px 14px;border:1px solid #514244;border-radius:12px;background:#241e20;color:#eee1e3}.cc-past-observations summary{display:flex;justify-content:space-between;gap:10px;align-items:center;cursor:pointer;font-weight:800;color:#e8c0c8}.cc-past-observations summary b{font-size:11px;border-radius:999px;padding:4px 8px;background:#3a2b2e;color:#f4dce0}.cc-past-observations>p{color:#bcaeb0;font-size:11px;line-height:1.5}.cc-past-observations-list{display:grid;gap:7px;max-height:420px;overflow:auto}.cc-past-observation{border-left:3px solid #77676a;border-radius:0 8px 8px 0;padding:8px 10px;background:#2b2426;color:#dfd4d5;font-size:11px;line-height:1.5}.cc-past-observation small{display:block;margin-bottom:3px;color:#bba9ac}.cc-past-observation em{display:block;margin-top:3px;color:#d7b3ba;font-style:normal;font-size:10px}",
@@ -246,13 +248,15 @@
     return [...trainings,...meetings].sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))||String(a.time||"").localeCompare(String(b.time||"")));
   }
   function isDone(item) { return ["completed","terminée","terminee","done"].includes(String(item.status||"").toLocaleLowerCase("fr")); }
+  function isNotDone(item) { return ["not_done","not done","non faite","non réalisée","non realisee","missed"].includes(String(item.status||"").toLocaleLowerCase("fr")); }
+  function isResolved(item) { return isDone(item) || isNotDone(item); }
   function agendaCard(item) {
-    const done=isDone(item),isMeeting=item._agendaType==="meeting";
+    const done=isDone(item),notDone=isNotDone(item),isMeeting=item._agendaType==="meeting";
     const names=(item.employeeIds||[]).map((id)=>personById(id)).filter(Boolean).map(personName);
     const attendeeLabel=isMeeting?(item.employee||"Équipe"):names.length?names.join(", "):(item.employeeNames||[]).join(", ")||"Équipe";
-    const status=done?(isMeeting?"Réalisée":"Terminée"):item.date<today()?"À reprogrammer":isMeeting?"Réunion planifiée":"Planifiée";
+    const status=done?(isMeeting?"Réalisée":"Faite"):notDone?"Non faite":item.date<today()?"À confirmer":isMeeting?"Réunion planifiée":"Planifiée";
     const focus=focusSummary(item);
-    return '<button type="button" class="cc-agenda-event '+(isMeeting?"cc-agenda-meeting":"")+'" data-agenda-detail="'+esc(item.id)+'"><span class="cc-agenda-date">'+esc(dateLabel(item.date))+(item.time?'<br><small>'+esc(timeLabel(item.time))+'</small>':"")+'</span><span><small class="cc-topic-origin">'+(isMeeting?"Réunion":"Formation")+'</small><h3>'+esc(item.title||(isMeeting?"Réunion":"Formation"))+'</h3><span class="cc-agenda-meta">'+esc(attendeeLabel)+(item.location?" · "+esc(item.location):"")+'</span>'+(focus?'<small class="cc-agenda-focus-preview" title="'+esc(focus)+'">'+esc(focus)+'</small>':"")+'</span><span class="cc-agenda-status '+(done?"done":"")+'">'+esc(status)+'</span></button>';
+    return '<button type="button" class="cc-agenda-event '+(isMeeting?"cc-agenda-meeting":"")+'" data-agenda-detail="'+esc(item.id)+'"><span class="cc-agenda-date">'+esc(dateLabel(item.date))+(item.time?'<br><small>'+esc(timeLabel(item.time))+'</small>':"")+'</span><span><small class="cc-topic-origin">'+(isMeeting?"Réunion":"Formation")+'</small><h3>'+esc(item.title||(isMeeting?"Réunion":"Formation"))+'</h3><span class="cc-agenda-meta">'+esc(attendeeLabel)+(item.location?" · "+esc(item.location):"")+'</span>'+(focus?'<small class="cc-agenda-focus-preview" title="'+esc(focus)+'">'+esc(focus)+'</small>':"")+'</span><span class="cc-agenda-status '+(done?"done":notDone?"not-done":"")+'">'+esc(status)+'</span></button>';
   }
   function newAgendaForm() {
     document.querySelectorAll("[data-agenda-new]").forEach((button)=>button.hidden=!manager());
@@ -270,23 +274,37 @@
     return {start:isoDate(start),end:isoDate(end)};
   }
   function agendaWeekCard(item) {
-    const meeting=item._agendaType==="meeting",done=isDone(item),name=meeting?(item.employee||"Équipe"):((item.employeeIds||[]).map(personById).filter(Boolean).map(personName).join(", ")||(item.employeeNames||[]).join(", ")||"Équipe"),focus=focusSummary(item);
-    return '<button type="button" class="cc-week-event '+(meeting?"meeting ":"")+(done?"done":"")+'" data-agenda-detail="'+esc(item.id)+'"><span class="cc-week-event-time">'+esc(item.time?timeLabel(item.time):"Horaire à définir")+'</span><strong>'+esc(item.title||(meeting?"Réunion":"Formation"))+'</strong><small>'+esc(name)+'</small>'+(focus?'<small class="cc-agenda-focus-preview" title="'+esc(focus)+'">'+esc(focus)+'</small>':"")+'</button>';
+    const meeting=item._agendaType==="meeting",done=isDone(item),notDone=isNotDone(item),name=meeting?(item.employee||"Équipe"):((item.employeeIds||[]).map(personById).filter(Boolean).map(personName).join(", ")||(item.employeeNames||[]).join(", ")||"Équipe"),focus=focusSummary(item);
+    return '<button type="button" class="cc-week-event '+(meeting?"meeting ":"")+(done?"done ":notDone?"not-done":"")+'" data-agenda-detail="'+esc(item.id)+'"><span class="cc-week-event-time">'+esc(item.time?timeLabel(item.time):"Horaire à définir")+'</span><strong>'+esc(item.title||(meeting?"Réunion":"Formation"))+'</strong><small>'+esc(name)+(notDone?" · Non faite":done?" · Faite":"")+'</small>'+(focus?'<small class="cc-agenda-focus-preview" title="'+esc(focus)+'">'+esc(focus)+'</small>':"")+'</button>';
   }
   function agendaUpcomingCard(item) {
     const meeting=item._agendaType==="meeting",date=new Date(String(item.date||"")+"T12:00:00"),name=meeting?(item.employee||"Équipe"):((item.employeeIds||[]).map(personById).filter(Boolean).map(personName).join(", ")||(item.employeeNames||[]).join(", ")||"Équipe"),focus=focusSummary(item);
     return '<button type="button" class="cc-agenda-upcoming" data-agenda-detail="'+esc(item.id)+'"><span class="cc-agenda-upcoming-date">'+esc(new Intl.DateTimeFormat("fr-FR",{month:"short"}).format(date))+'<strong>'+esc(date.getDate())+'</strong></span><span><span class="cc-agenda-upcoming-title">'+esc(item.title||(meeting?"Réunion":"Formation"))+'</span><span class="cc-agenda-upcoming-meta">'+esc(item.time?timeLabel(item.time)+" · ":"")+esc(name)+'</span>'+(focus?'<small class="cc-agenda-focus-preview" title="'+esc(focus)+'">'+esc(focus)+'</small>':"")+'</span></button>';
   }
+  function renderTrainingHistory() {
+    const records=(state().trainingAgenda||[])
+      .filter((item)=>item&&item.id!=null&&(String(item.date||"").slice(0,10)<=today()||isResolved(item)))
+      .slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||String(b.time||"").localeCompare(String(a.time||"")));
+    const body=records.map((item)=>{
+      const names=(item.employeeIds||[]).map(personById).filter(Boolean).map(personName);
+      const attendees=names.join(", ")||(item.employeeNames||[]).join(", ")||"Équipe";
+      const done=isDone(item),notDone=isNotDone(item),label=done?"Faite":notDone?"Non faite":"À confirmer";
+      const tone=done?"done":notDone?"not-done":"pending";
+      const note=String(item.completionNotes||"").trim();
+      return '<button type="button" class="cc-training-history-row" data-agenda-detail="'+esc(item.id)+'"><span class="cc-agenda-date">'+esc(dateLabel(item.date))+(item.time?'<small>'+esc(timeLabel(item.time))+'</small>':"")+'</span><span class="cc-training-history-detail"><strong>'+esc(item.title||"Formation")+'</strong><small>'+esc(attendees)+'</small>'+(note?'<em>'+esc(note)+'</em>':"")+'</span><span class="cc-result-pill '+tone+'">'+label+'</span></button>';
+    }).join("");
+    return '<section class="cc-training-history"><div class="cc-training-history-head"><div><h3>Historique des formations</h3><p>Séances passées, avec leur résultat. Clique sur une séance pour consulter ou mettre à jour son statut.</p></div><span class="cc-agenda-count">'+records.length+' séance(s)</span></div>'+(records.length?'<div class="cc-training-history-list">'+body+'</div>':'<div class="cc-agenda-empty-week">Aucune formation passée pour le moment.</div>')+'</section>';
+  }
   function renderAgenda() {
     let host=$("ccAgendaList");if(!host){mountNavigation();host=$("ccAgendaList");}if(!host)return;
     if($("screen-formationAgenda")?.classList.contains("active")&&$("crumb"))$("crumb").textContent="Formations & agenda";
-    const all=agendaItems(),done=all.filter(isDone),pending=all.filter((x)=>!isDone(x));
+    const all=agendaItems(),done=all.filter(isDone),notDone=all.filter(isNotDone),pending=all.filter((x)=>!isResolved(x));
     const todays=pending.filter((x)=>String(x.date||"").slice(0,10)===today()).length;
-    const summary=$("ccAgendaSummary");if(summary)summary.innerHTML='<span class="cc-agenda-count">'+todays+' aujourd’hui</span><span class="cc-agenda-count">'+pending.length+' planifiée(s)</span><span class="cc-agenda-count">'+done.length+' réalisée(s)</span>';
+    const summary=$("ccAgendaSummary");if(summary)summary.innerHTML='<span class="cc-agenda-count">'+todays+' aujourd’hui</span><span class="cc-agenda-count">'+pending.length+' planifiée(s)</span><span class="cc-agenda-count">'+done.length+' réalisée(s)</span><span class="cc-agenda-count">'+notDone.length+' non faite(s)</span>';
     const form=$("ccAgendaCreate");if(form)form.innerHTML=newAgendaForm();
     const range=agendaWeekBounds(),weekDays=Array.from({length:5},(_,i)=>{const dateObj=new Date(range.start+"T12:00:00");dateObj.setDate(dateObj.getDate()+i);const date=isoDate(dateObj),events=all.filter((x)=>String(x.date||"").slice(0,10)===date).sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));return '<div class="cc-agenda-week-day"><div class="cc-agenda-week-dayhead"><strong>'+esc(new Intl.DateTimeFormat("fr-FR",{weekday:"long"}).format(dateObj))+'</strong>'+esc(new Intl.DateTimeFormat("fr-FR",{day:"numeric",month:"short"}).format(dateObj))+'</div><div class="cc-agenda-week-events">'+(events.length?events.map(agendaWeekCard).join(""):'<div class="cc-week-empty">Aucune séance</div>')+'</div></div>';}).join("");
-    const upcoming=pending.slice(0,5),recent=done.slice().reverse().slice(0,5);
-    host.innerHTML='<div class="cc-agenda-week-layout"><div class="cc-agenda-week-main"><div class="cc-agenda-week-toolbar"><div><strong>Agenda des formations</strong><small>Du '+esc(dateLabel(range.start))+' au '+esc(dateLabel(range.end))+'</small></div><div class="cc-agenda-week-controls"><button type="button" data-agenda-week-nav="-1" aria-label="Semaine précédente">‹</button><button type="button" data-agenda-week-nav="0">Cette semaine</button><button type="button" data-agenda-week-nav="1" aria-label="Semaine suivante">›</button></div></div><div class="cc-agenda-week-grid-wrap"><div class="cc-agenda-week-grid">'+weekDays+'</div></div></div><aside class="cc-agenda-side"><h3>Prochaines séances</h3><p>Les formations et réunions planifiées par les comptes autorisés apparaissent ici.</p><div class="cc-agenda-upcoming-list">'+(upcoming.length?upcoming.map(agendaUpcomingCard).join(""):'<div class="cc-agenda-empty-week">Aucune séance planifiée pour le moment.</div>')+'</div>'+(recent.length?'<details class="cc-agenda-history"><summary>Dernières séances réalisées ('+done.length+')</summary><div class="cc-agenda-history-list">'+recent.map(agendaUpcomingCard).join("")+'</div></details>':"")+'</aside></div>';
+    const upcoming=pending.slice(0,5);
+    host.innerHTML='<div class="cc-agenda-week-layout"><div class="cc-agenda-week-main"><div class="cc-agenda-week-toolbar"><div><strong>Agenda des formations</strong><small>Du '+esc(dateLabel(range.start))+' au '+esc(dateLabel(range.end))+'</small></div><div class="cc-agenda-week-controls"><button type="button" data-agenda-week-nav="-1" aria-label="Semaine précédente">‹</button><button type="button" data-agenda-week-nav="0">Cette semaine</button><button type="button" data-agenda-week-nav="1" aria-label="Semaine suivante">›</button></div></div><div class="cc-agenda-week-grid-wrap"><div class="cc-agenda-week-grid">'+weekDays+'</div></div></div><aside class="cc-agenda-side"><h3>Prochaines séances</h3><p>Les formations et réunions planifiées par les comptes autorisés apparaissent ici.</p><div class="cc-agenda-upcoming-list">'+(upcoming.length?upcoming.map(agendaUpcomingCard).join(""):'<div class="cc-agenda-empty-week">Aucune séance planifiée pour le moment.</div>')+'</div></aside></div>'+renderTrainingHistory();
     renderThemes();
   }
   function eventById(id) {
@@ -299,14 +317,20 @@
     return item?{...item,_agendaType:"training"}:null;
   }
   function eventDetails(item) {
-    const done=isDone(item),isMeeting=item._agendaType==="meeting";
+    const done=isDone(item),notDone=isNotDone(item),resolved=done||notDone,isMeeting=item._agendaType==="meeting";
     if(isMeeting){
       const canEdit=manager()&&!done;
       const body='<p><b>Date :</b> '+esc(dateLabel(item.date))+(item.time?' · '+esc(timeLabel(item.time)):"")+'</p><p><b>Personne / équipe :</b> '+esc(item.employee||"Équipe")+'</p>'+(item.summary?'<div class="cc-observation">'+esc(item.summary)+'</div>':"")+'<p><small>Planifiée par '+esc(item.owner||"l’équipe")+'</small></p>'+(canEdit?'<form class="cc-training-form" data-meeting-edit="'+esc(item._sourceId)+'"><label>Sujet de la réunion<input name="title" maxlength="180" required value="'+esc(item.title||item.kind||"Réunion")+'"></label><label>Date<input type="date" name="date" required value="'+esc(String(item.date||"").slice(0,10))+'"></label><label>Heure<input type="time" name="time" value="'+esc(String(item.time||"").slice(0,5))+'"></label><label>Personne / équipe concernée<input name="employee" maxlength="180" value="'+esc(item.employee||"Équipe")+'"></label><label class="cc-wide">Points à traiter<textarea name="summary" maxlength="1000">'+esc(item.summary||"")+'</textarea></label><button class="btn primary" type="submit">Enregistrer les modifications</button><button class="btn" type="button" data-meeting-delete="'+esc(item._sourceId)+'">Supprimer la réunion</button></form>':"");
       openDialog(item.title||"Réunion",body);return;
     }
     const names=(item.employeeIds||[]).map(personById).filter(Boolean).map(personName),focus=focusMarkup(item.focusByEmployee,"Problématiques ciblées par participant");
-    const body='<p><b>Date :</b> '+esc(dateLabel(item.date))+(item.time?' · '+esc(timeLabel(item.time)):"")+'</p><p><b>Participants :</b> '+esc(names.join(", ")||(item.employeeNames||[]).join(", ")||"Non précisés")+'</p>'+(item.duration?'<p><b>Durée :</b> '+esc(item.duration)+' minutes</p>':"")+(item.location?'<p><b>Lieu :</b> '+esc(item.location)+'</p>':"")+focus+(item.details?'<div class="cc-session-objective"><b>Objectif / préparation</b><p>'+esc(item.details)+'</p></div>':"")+(done?'<div class="cc-observation"><small>Réalisée le '+esc(dateLabel(item.completedOn||item.completedAt))+' · '+esc(item.trainer||"")+'</small>'+esc(item.completionNotes||"Formation confirmée.")+'</div>':"")+(mayComplete()&&!done?'<form class="cc-training-form" data-training-complete="'+esc(item.id)+'"><label class="cc-wide">Compte rendu / points travaillés<textarea name="notes" maxlength="1200" placeholder="Résumé de la séance, acquis et suite prévue"></textarea></label><button class="btn primary" type="submit">Confirmer la formation terminée</button></form>':"")+(manager()&&!done?'<div class="cc-agenda-actions"><button class="btn" type="button" data-training-edit="'+esc(item.id)+'">Modifier</button><button class="btn danger" type="button" data-training-delete="'+esc(item.id)+'">Supprimer</button></div>':"");
+    const resultDate=done?(item.completedOn||item.completedAt):(notDone?(item.notCompletedOn||item.notCompletedAt):"");
+    const resultLabel=done?"Formation faite":notDone?"Formation non faite":"À confirmer";
+    const resultClass=done?"done":notDone?"not-done":"pending";
+    const resultInfo=resolved?'<div class="cc-observation"><small>'+esc(resultLabel)+' le '+esc(dateLabel(resultDate))+(item.resultRecordedBy?' · '+esc(item.resultRecordedBy):"")+'</small>'+esc(item.completionNotes||(done?"Formation confirmée.":"Aucun motif indiqué."))+'</div>':"";
+    const resultForm=mayComplete()?'<form class="cc-training-form" data-training-result="'+esc(item.id)+'"><label class="cc-wide">'+(resolved?"Compte rendu / motif":"Compte rendu / motif (facultatif)")+'<textarea name="notes" maxlength="1200" placeholder="Résumé de la séance ou raison si elle n’a pas eu lieu">'+esc(item.completionNotes||"")+'</textarea></label><div class="cc-training-result-actions cc-wide"><button class="btn primary" type="submit" name="outcome" value="completed">'+(done?"Confirmer comme faite":"Marquer comme faite")+'</button><button class="btn danger" type="submit" name="outcome" value="not_done">'+(notDone?"Confirmer comme non faite":"Marquer comme non faite")+'</button></div></form>':"";
+    const editActions=manager()&&!resolved?'<div class="cc-agenda-actions"><button class="btn" type="button" data-training-edit="'+esc(item.id)+'">Modifier</button><button class="btn danger" type="button" data-training-delete="'+esc(item.id)+'">Supprimer</button></div>':"";
+    const body='<p><b>Date :</b> '+esc(dateLabel(item.date))+(item.time?' · '+esc(timeLabel(item.time)):"")+'</p><p><b>Participants :</b> '+esc(names.join(", ")||(item.employeeNames||[]).join(", ")||"Non précisés")+'</p>'+(item.duration?'<p><b>Durée :</b> '+esc(item.duration)+' minutes</p>':"")+(item.location?'<p><b>Lieu :</b> '+esc(item.location)+'</p>':"")+focus+(item.details?'<div class="cc-session-objective"><b>Objectif / préparation</b><p>'+esc(item.details)+'</p></div>':"")+'<div class="cc-training-result-current"><b>Statut : <span class="cc-result-pill '+resultClass+'">'+esc(resultLabel)+'</span></b></div>'+resultInfo+resultForm+editActions;
     openDialog(item.title||"Formation",body);
   }
   function trainingEditForm(item) {
@@ -318,7 +342,7 @@
   function saveTrainingEdit(form) {
     if(!manager())return;
     const fd=new FormData(form),id=String(form.dataset.trainingUpdate||""),agenda=state().trainingAgenda||[],item=agenda.find((x)=>String(x.id)===id);
-    if(!item||isDone(item))return;
+    if(!item||isResolved(item))return;
     const title=String(fd.get("title")||"").trim(),date=String(fd.get("date")||"").slice(0,10),employeeIds=[...form.querySelectorAll("[data-training-edit-person]:checked")].map((x)=>String(x.value));
     if(!title||!date||!employeeIds.length){window.crmToast?.("Renseigne le thème, la date et au moins un participant.");return;}
     const focusGroup=item.themeId?themeGroups().find((x)=>String(x.id)===String(item.themeId)):null,focusByEmployee=focusGroup?focusParticipants(focusGroup,employeeIds):(item.focusByEmployee||[]).filter((x)=>employeeIds.includes(String(x.employeeId))),focusObservations=focusGroup?focusGroup.items.filter((x)=>employeeIds.includes(String(x.employeeId))).map((x)=>({...x})):(item.focusObservations||[]).filter((x)=>employeeIds.includes(String(x.employeeId)));
@@ -328,7 +352,7 @@
   function deleteTraining(id) {
     if(!manager())return;
     const agenda=state().trainingAgenda||[],index=agenda.findIndex((x)=>String(x.id)===String(id));
-    if(index<0||isDone(agenda[index]))return;
+    if(index<0||isResolved(agenda[index]))return;
     if(!window.confirm("Supprimer cette formation planifiée ?"))return;
     agenda.splice(index,1);persist("trainingAgenda",agenda);closeDialog();renderAgenda();window.crmToast?.("Formation supprimée de l’agenda.");
   }
@@ -366,7 +390,7 @@
       const employee=personById(employeeId);if(!employee)return;
       const existing=rows.find((x)=>String(x.eventId)===String(item.id)&&String(x.employeeId)===employeeId);
       const focus=(item.focusByEmployee||[]).find((x)=>String(x.employeeId)===employeeId)||null;
-      const record={id:existing?.id||("training-"+String(item.id)+"-"+employeeId),eventId:String(item.id),employeeId,employee:personName(employee),date:item.completedOn||today(),topic:item.title||"Formation",title:item.title||"Formation",details:item.details||"",focusByEmployee:focus,notes:notes||"",trainer:item.trainer||currentUserName(),createdAt:item.completedAt||new Date().toISOString()};
+      const record={id:existing?.id||("training-"+String(item.id)+"-"+employeeId),eventId:String(item.id),employeeId,employee:personName(employee),date:item.completedOn||today(),topic:item.title||"Formation",title:item.title||"Formation",details:item.details||"",focusByEmployee:focus,notes:notes||"",status:"completed",trainer:item.trainer||currentUserName(),createdAt:item.completedAt||new Date().toISOString()};
       if(existing)Object.assign(existing,record);else rows.push(record);
     });
     persist("trainingHistory",rows);
@@ -438,19 +462,39 @@
     agenda.push({id:"training-"+Date.now(),title:String(fd.get("title")).trim(),details:String(fd.get("details")||""),date:String(fd.get("date")),time:String(fd.get("time")||""),duration:Number(fd.get("duration")||60),location:String(fd.get("location")||""),employeeIds,employeeNames:employeeIds.map(personById).filter(Boolean).map(personName),status:"planned",createdBy:currentUserName(),createdAt:new Date().toISOString()});
     persist("trainingAgenda",agenda);closeDialog();renderAgenda();window.crmToast?.("Formation ajoutée à l’agenda partagé.");
   }
-  function completeTraining(form) {
-    const item=eventById(form.dataset.trainingComplete);if(!item||!mayComplete())return;
-    const notes=String(new FormData(form).get("notes")||"").trim();
-    item.status="completed";item.completedOn=today();item.completedAt=new Date().toISOString();item.trainer=currentUserName();item.completionNotes=notes;
-    const agenda=state().trainingAgenda||[];const idx=agenda.findIndex((x)=>String(x.id)===String(item.id));if(idx>=0)agenda[idx]=item;
-    const resolvedCount=archiveTrainingObservations(item);
-    persist("trainingAgenda",agenda);saveTrainingHistory(item,notes);closeDialog();renderAgenda();renderThemes();window.crmRefreshTrainingHistoryProfile?.();window.crmToast?.(resolvedCount?"Formation terminée. Les observations ciblées sont passées dans les observations passées, et les historiques sont conservés.":"Formation terminée. L’historique des participants a été mis à jour.");
+  async function saveTrainingResult(form, outcome) {
+    const item=eventById(form.dataset.trainingResult);if(!item||!mayComplete())return;
+    if(!["completed","not_done"].includes(outcome))return;
+    const notes=String(new FormData(form).get("notes")||"").trim(),now=new Date().toISOString(),user=currentUserName();
+    const agenda=state().trainingAgenda||[],idx=agenda.findIndex((x)=>String(x.id)===String(item.id));if(idx<0)return;
+    if(outcome==="completed"){
+      item.status="completed";item.completedOn=today();item.completedAt=now;item.notCompletedOn="";item.notCompletedAt="";item.trainer=user;item.resultRecordedBy=user;item.completionNotes=notes;
+      delete item.nonCompletionReason;
+      const resolvedCount=archiveTrainingObservations(item);
+      saveTrainingHistory(item,notes);
+      agenda[idx]=item;persist("trainingAgenda",agenda);
+      let synced=true;
+      try { await Promise.all(["trainingAgenda","trainingHistory","trainingObservationArchive"].map((key)=>window.crmFlushState?.(key))); } catch(error) { synced=false;console.error("Synchronisation du résultat de formation:",error); }
+      closeDialog();renderAgenda();renderThemes();window.crmRefreshTrainingHistoryProfile?.();
+      window.crmToast?.(synced?(resolvedCount?"Formation marquée comme faite. Les observations ciblées sont archivées et l’historique est mis à jour.":"Formation marquée comme faite. L’historique des participants est à jour."):"Résultat enregistré, mais la synchronisation Supabase a échoué. Réessaie dans quelques instants.");
+      return;
+    }
+    item.status="not_done";item.notCompletedOn=today();item.notCompletedAt=now;item.completedOn="";item.completedAt="";item.trainer=user;item.resultRecordedBy=user;item.completionNotes=notes;
+    const archive=observationArchive().filter((entry)=>!(entry.reason==="formation"&&String(entry.trainingId)===String(item.id)));
+    if(archive.length!==observationArchive().length)persist("trainingObservationArchive",archive);
+    const history=(state().trainingHistory||[]).filter((entry)=>String(entry.eventId)!==String(item.id));
+    persist("trainingHistory",history);
+    agenda[idx]=item;persist("trainingAgenda",agenda);
+    let synced=true;
+    try { await Promise.all(["trainingAgenda","trainingHistory","trainingObservationArchive"].map((key)=>window.crmFlushState?.(key))); } catch(error) { synced=false;console.error("Synchronisation du résultat de formation:",error); }
+    closeDialog();renderAgenda();renderThemes();window.crmRefreshTrainingHistoryProfile?.();
+    window.crmToast?.(synced?"Formation marquée comme non faite.":"Résultat enregistré, mais la synchronisation Supabase a échoué. Réessaie dans quelques instants.");
   }
 
   function init() {
     addStyle();mountNavigation();wrapProfileRenderer();wrapSynthesisRenderer();ensurePermissionEditor();
     renderAgenda();renderThemes();
-    window.addEventListener("cc:crm-cloud-ready",renderThemes);
+    window.addEventListener("cc:crm-cloud-ready",()=>{renderAgenda();renderThemes();});
     window.addEventListener("cc:synthesis-data-updated",renderThemes);
     const nav=$("nav");
     nav?.addEventListener("click",(e)=>{const b=e.target.closest('[data-page="formationAgenda"]');if(!b)return;queueMicrotask(()=>{renderAgenda();const crumb=$("crumb");if(crumb)crumb.textContent="Formations & agenda";});});
@@ -462,7 +506,7 @@
       const plan=e.target.closest("[data-theme-plan]");if(plan){const group=themeGroups().find((x)=>String(x.id)===String(plan.dataset.themePlan));const selected=selectedByTheme[plan.dataset.themePlan]||[];if(!selected.length){window.crmToast?.("Clique sur au moins un téléphoniste pour composer le groupe.");return;}if(group)openDialog("Préparer une formation",themeScheduleForm(group));return;}
       const detail=e.target.closest("[data-theme-detail]");if(detail){themeDetails(detail.dataset.themeDetail);return;}
       const weekNav=e.target.closest("[data-agenda-week-nav]");if(weekNav){const move=Number(weekNav.dataset.agendaWeekNav||0);agendaWeekOffset=move===0?0:agendaWeekOffset+move;renderAgenda();return;}
-      const editTraining=e.target.closest("[data-training-edit]");if(editTraining){const item=eventById(editTraining.dataset.trainingEdit);if(item&&!isDone(item)&&manager())openDialog("Modifier la formation",trainingEditForm(item));return;}
+      const editTraining=e.target.closest("[data-training-edit]");if(editTraining){const item=eventById(editTraining.dataset.trainingEdit);if(item&&!isResolved(item)&&manager())openDialog("Modifier la formation",trainingEditForm(item));return;}
       const removeTraining=e.target.closest("[data-training-delete]");if(removeTraining){deleteTraining(removeTraining.dataset.trainingDelete);return;}
       const agenda=e.target.closest("[data-agenda-detail]");if(agenda){const item=eventById(agenda.dataset.agendaDetail);if(item)eventDetails(item);return;}
       const removeMeeting=e.target.closest("[data-meeting-delete]");if(removeMeeting){deleteMeeting(removeMeeting.dataset.meetingDelete);return;}
@@ -474,7 +518,7 @@
       const create=e.target.closest("[data-agenda-create]");if(create){e.preventDefault();createAgenda(create);return;}
       const updateTraining=e.target.closest("[data-training-update]");if(updateTraining){e.preventDefault();saveTrainingEdit(updateTraining);return;}
       const meeting=e.target.closest("[data-meeting-edit]");if(meeting){e.preventDefault();saveMeeting(meeting);return;}
-      const done=e.target.closest("[data-training-complete]");if(done){e.preventDefault();completeTraining(done);}
+      const result=e.target.closest("[data-training-result]");if(result){e.preventDefault();saveTrainingResult(result,e.submitter?.value||"");}
     });
     window.setInterval(()=>{wrapSynthesisRenderer();wrapProfileRenderer();ensurePermissionEditor();},1000);
     window.crmRenderFormationAgenda=renderAgenda;
