@@ -219,7 +219,10 @@ function summarizeEmployee(employee: Record<string, any>, rows: any[], attendanc
   const totalDeductions = productionMalus + lateMalus + absenceMalus;
   const salaryBeforeRank = Math.max(0, configured.base - totalDeductions + totalBonuses);
   const currentRank = hasSignatureData ? rankFor(signatures) : null;
+  const currentRankIndex = currentRank ? ranks.findIndex(rank => rank.name === currentRank.name) : -1;
+  const nextRank = currentRankIndex >= 0 ? ranks[currentRankIndex + 1] || null : null;
   const calculatedSalary = currentRank ? Math.round(salaryBeforeRank * currentRank.coefficient) : null;
+  const nextRankSalary = nextRank ? Math.round(salaryBeforeRank * nextRank.coefficient) : null;
   const employeeStatus = normalize(employee.status);
   return {
     employeeId: employee.id,
@@ -233,6 +236,9 @@ function summarizeEmployee(employee: Record<string, any>, rows: any[], attendanc
     rankName: currentRank?.name ?? null,
     rankCoefficient: currentRank?.coefficient ?? null,
     salary: calculatedSalary,
+    nextRankName: nextRank?.name ?? null,
+    nextRankCoefficient: nextRank?.coefficient ?? null,
+    nextRankSalary,
     hasKpiData: hasAppointmentData || hasSignatureData,
     bonusDetails: bonuses.length,
     malusDetails: maluses.length,
