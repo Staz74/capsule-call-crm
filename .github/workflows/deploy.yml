@@ -34,7 +34,7 @@ jobs:
           with open(path, encoding="utf-8") as page:
               html = page.read()
           version = os.environ["ASSET_VERSION"]
-          html = re.sub(r'((?:src|href)="\./src/[^"?]+)(?:\?v=[^"]*)?"', lambda match: match.group(1) + "?v=" + version + '"', html)
+          html = re.sub(r'((?:src|href)="\\./src/[^"?]+)(?:\\?v=[^"]*)?"', lambda match: match.group(1) + "?v=" + version + '"', html)
           with open(path, "w", encoding="utf-8") as page:
               page.write(html)
           PY
@@ -42,7 +42,10 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: .
+          name: github-pages-${{ github.run_attempt }}
       - name: Publish
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
 
