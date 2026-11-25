@@ -73,6 +73,45 @@
     }
     host.innerHTML = bodyRows.join("");
   }
+  function ensureFormerPanel() {
+    const existing = $("payrollFormerPanel");
+    if (existing) return existing;
+    const beginnerHost = $("payrollBeginnerRows");
+    const reference = beginnerHost?.closest(".payroll-panel")
+      || beginnerHost?.closest(".panel")
+      || beginnerHost?.closest("section")
+      || $("screen-payroll");
+    if (!reference) return null;
+    const panel = document.createElement("section");
+    panel.id = "payrollFormerPanel";
+    panel.className = reference.classList.contains("payroll-panel") ? reference.className : "panel payroll-panel";
+    panel.innerHTML = '<div class="panel-head"><div class="payroll-panel-title"><h3>Collaborateurs partis ce mois</h3><span id="payrollFormerCount" class="payroll-count">0 collaborateur</span></div></div><div class="payroll-table-wrap"><table class="payroll-table payroll-former-table"><thead><tr><th scope="col">Collaborateur</th><th scope="col">Rendez-vous pris</th><th scope="col">Signatures confirmées</th></tr></thead><tbody id="payrollFormerRows"><tr><td colspan="3"><div class="payroll-empty">Chargement…</div></td></tr></tbody></table></div>';
+    if (reference.id === "screen-payroll") reference.append(panel);
+    else reference.insertAdjacentElement("afterend", panel);
+    return panel;
+  }
+  function renderFormerTable(rows) {
+    const host = $("payrollFormerRows");
+    const countNode = $("payrollFormerCount");
+    if (!host) return;
+    if (countNode) countNode.textContent = rows.length + (rows.length === 1 ? " collaborateur" : " collaborateurs");
+    if (!rows.length) {
+      host.innerHTML = '<tr><td colspan="3"><div class="payroll-empty"><b>Aucun départ enregistré pendant ce mois</b>Les statistiques des collaborateurs partis durant la période apparaîtront ici.</div></td></tr>';
+      return;
+    }
+    const bodyRows = rows.map(row => {
+      const departure = row.departureDate
+        ? new Date(row.departureDate + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+        : "";
+      const name = '<span class="payroll-name">' + escapeHtml(row.name || "Collaboratrice") + '</span><small class="payroll-status-tag">' + (departure ? "Départ le " + escapeHtml(departure) : "Partie pendant la période") + '</small>';
+      return '<tr><td>' + name + '</td><td class="payroll-number">' + count(row.appointments) + '</td><td class="payroll-number">' + count(row.signatures) + '</td></tr>';
+    });
+    const totalAppointments = sumAvailable(rows, "appointments");
+    const totalSignatures = sumAvailable(rows, "signatures");
+    const partial = rows.some(row => row.appointments == null || row.signatures == null);
+    bodyRows.push('<tr class="payroll-summary-row"><td><span class="payroll-name">Total des collaborateurs partis (' + rows.length + ')</span><small class="payroll-status-tag">' + (partial ? "Somme des données disponibles" : "Période complète") + '</small></td><td class="payroll-number">' + count(totalAppointments) + '</td><td class="payroll-number">' + count(totalSignatures) + '</td></tr>');
+    host.innerHTML = bodyRows.join("");
+  }
   function render(data) {
     const month = data.month;
     const label = monthLabel(month);
@@ -80,12 +119,15 @@
     if (period) period.textContent = "Statistiques de " + label;
     const autonomous = (data.entries || []).filter(row => row.status === "autonome");
     const beginners = (data.entries || []).filter(row => row.status === "debutant");
+    const former = Array.isArray(data.formerEntries) ? data.formerEntries : [];
+    ensureFormerPanel();
     const autoCount = $("payrollAutonomousCount"), beginnerCount = $("payrollBeginnerCount");
     if (autoCount) autoCount.textContent = autonomous.length + (autonomous.length === 1 ? " collaborateur" : " collaborateurs");
     if (beginnerCount) beginnerCount.textContent = beginners.length + (beginners.length === 1 ? " collaboratrice" : " collaboratrices");
     renderTable(autonomous, true);
     renderTable(beginners, false);
-    setMessage("Calcul basé sur les règles Mon salaire et les KPI Brokerlink synchronisés. Les rendez-vous du week-end restent dans les statistiques, mais ne déclenchent pas de bonus ni de malus.", "info");
+    renderFormerTable(former);
+    setMessage("Calcul basé sur les règles Mon salaire et les KPI Brokerlink synchronisés. Les collaborateurs archivés pendant le mois sélectionné restent visibles ici pour faciliter le rapprochement.", "info");
   }
   async function load(month) {
     const currentRequest = ++requestId;
