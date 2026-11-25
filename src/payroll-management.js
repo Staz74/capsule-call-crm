@@ -27,7 +27,7 @@
     }
     host.innerHTML = rows.map(row => {
       const salaryCell = isSalary
-        ? '<td class="payroll-money positive">' + (row.bonus ? "+ " + amount(row.bonus) : amount(0)) + '</td><td class="payroll-money negative">' + (row.malus ? "− " + amount(row.malus) : amount(0)) + '</td><td class="payroll-total"><strong>' + amount(row.salary) + '</strong><small>Base ' + amount(row.baseSalary) + '</small></td>'
+        ? '<td class="payroll-money positive">' + (row.bonus ? "+ " + amount(row.bonus) : amount(0)) + '</td><td class="payroll-money negative">' + (row.malus ? "− " + amount(row.malus) : amount(0)) + '</td><td class="payroll-total"><strong>' + amount(row.salary) + '</strong><small>' + escapeHtml(row.rankName ? row.rankName + " · × " + Number(row.rankCoefficient).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) : "Rang en attente") + ' · base ' + amount(row.baseSalary) + '</small></td>'
         : "";
       const name = '<span class="payroll-name">' + escapeHtml(row.name || "Collaboratrice") + '</span><small class="payroll-status-tag">' + (isSalary ? "Autonome" : "Débutante") + '</small>';
       return '<tr><td>' + name + '</td><td class="payroll-number">' + count(row.appointments) + '</td><td class="payroll-number">' + count(row.signatures) + '</td>' + salaryCell + '</tr>';
