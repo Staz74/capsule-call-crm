@@ -43,6 +43,8 @@ jobs:
         with:
           path: .
           name: github-pages-${{ github.run_attempt }}
+      - name: Wait for the Pages artifact index
+        run: sleep 15
       - name: Publish
         id: deployment
         uses: actions/deploy-pages@v4
