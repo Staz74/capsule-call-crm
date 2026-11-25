@@ -10,7 +10,7 @@
 .payroll-status.loading{background:rgba(216,178,125,.1);border:1px solid rgba(216,178,125,.35);color:var(--amber,#d8b27d)}
 .payroll-status.error{background:rgba(217,151,158,.1);border:1px solid rgba(217,151,158,.42);color:var(--red,#d9979e)}
 .payroll-table-wrap{overflow:auto}
-.payroll-table{width:100%;min-width:900px;border-collapse:collapse}
+.payroll-table{width:100%;min-width:1120px;border-collapse:collapse}
 .payroll-table th{padding:12px 16px;text-align:left;color:var(--muted);font-size:11px;letter-spacing:.04em;border-bottom:1px solid var(--line);background:rgba(255,255,255,.025)}
 .payroll-table td{padding:13px 16px;border-bottom:1px solid var(--line);font-size:14px;color:var(--ink)}
 .payroll-table tbody tr:last-child td{border-bottom:0}
@@ -25,7 +25,7 @@
 .payroll-empty{padding:25px 18px;text-align:center;color:var(--muted);white-space:normal;line-height:1.5}
 .payroll-empty b{display:block;margin-bottom:5px;color:var(--ink);font-size:14px}
 .payroll-note{margin:10px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
-@media(max-width:760px){.payroll-table{min-width:900px}.payroll-toolbar{width:100%}.payroll-toolbar input{width:100%}.payroll-head{display:block}.payroll-toolbar{margin-top:14px}}
+@media(max-width:760px){.payroll-table{min-width:1120px}.payroll-toolbar{width:100%}.payroll-toolbar input{width:100%}.payroll-head{display:block}.payroll-toolbar{margin-top:14px}}
 .payroll-conversion{display:inline-flex;flex-direction:column;gap:3px;white-space:nowrap}
 .payroll-conversion strong{color:var(--sakura,#e9c4ca);font-size:14px;font-variant-numeric:tabular-nums}
 .payroll-conversion small,.payroll-conversion-empty{color:var(--muted);font-size:11px}
@@ -35,3 +35,8 @@
 
 .payroll-table.payroll-former-table{min-width:580px}
 .payroll-panel-title h3{margin:0;color:var(--ink);font-size:16px}
+
+.payroll-next-salary{min-width:165px;font-variant-numeric:tabular-nums}
+.payroll-next-salary strong{display:block;color:var(--green,#a8c7b2);font-size:14px;white-space:nowrap}
+.payroll-next-salary span{display:block;color:var(--muted);font-size:12px;font-weight:700}
+.payroll-next-salary small{display:block;margin-top:4px;color:var(--muted);font-size:11px;white-space:nowrap}
