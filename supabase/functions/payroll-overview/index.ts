@@ -44,6 +44,14 @@ const money = (value: unknown, fallback = 0) => {
 const dateLabel = (date: string) => new Date(date + "T12:00:00Z").toLocaleDateString("fr-FR", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
 const appointmentAliases = ["rdv_pris", "rendez_vous", "appointments", "appointment_count"];
 const openingAliases = ["ouverture_validee", "ouvertures_validees", "ouverture_confirmee", "ouvertures_confirmees", "signature_confirmee", "signatures_confirmees", "signatures_validees", "ouvertures_lpp", "signatures_lca", "confirmed_signatures", "validated_signatures", "signed_accounts", "signatures", "openings", "validated_openings"];
+const ranks = [
+  { name: "IRON", min: 0, coefficient: 0.25 },
+  { name: "GOLD", min: 5, coefficient: 0.50 },
+  { name: "DIAMOND", min: 10, coefficient: 0.75 },
+  { name: "MASTER", min: 15, coefficient: 0.90 },
+  { name: "CHALLENGER", min: 20, coefficient: 1 }
+];
+const rankFor = (signatures: number) => ranks.slice().reverse().find(rank => signatures >= rank.min) || ranks[0];
 const dateAliases = ["date", "jour", "date_activite", "created_at"];
 const loginAliases = ["premiere_connexion", "first_login", "heure_premiere_connexion", "h_1ere_co", "first_connection"];
 
@@ -170,6 +178,9 @@ function summarizeEmployee(employee: Record<string, any>, rows: any[], attendanc
   }
 
   const totalDeductions = productionMalus + lateMalus + absenceMalus;
+  const salaryBeforeRank = Math.max(0, configured.base - totalDeductions + totalBonuses);
+  const currentRank = hasSignatureData ? rankFor(signatures) : null;
+  const calculatedSalary = currentRank ? Math.round(salaryBeforeRank * currentRank.coefficient) : null;
   const employeeStatus = normalize(employee.status);
   return {
     employeeId: employee.id,
@@ -180,7 +191,9 @@ function summarizeEmployee(employee: Record<string, any>, rows: any[], attendanc
     bonus: totalBonuses,
     malus: totalDeductions,
     baseSalary: configured.base,
-    salary: Math.max(0, configured.base - totalDeductions + totalBonuses),
+    rankName: currentRank?.name ?? null,
+    rankCoefficient: currentRank?.coefficient ?? null,
+    salary: calculatedSalary,
     hasKpiData: hasAppointmentData || hasSignatureData,
     bonusDetails: bonuses.length,
     malusDetails: maluses.length,
