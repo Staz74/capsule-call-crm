@@ -32,3 +32,6 @@
 .payroll-summary-row td{background:rgba(233,196,202,.075);border-top:2px solid rgba(233,196,202,.38)!important;font-weight:700}
 .payroll-summary-row .payroll-name{color:var(--sakura,#e9c4ca)}
 .payroll-summary-row .payroll-status-tag{font-weight:500}
+
+.payroll-table.payroll-former-table{min-width:580px}
+.payroll-panel-title h3{margin:0;color:var(--ink);font-size:16px}
