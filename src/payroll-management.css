@@ -1,0 +1,28 @@
+.payroll-toolbar{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+.payroll-toolbar label{display:block;color:var(--muted);font-size:11px;margin-bottom:6px}
+.payroll-toolbar input{min-width:190px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2,#262020);color:var(--ink);font:inherit}
+.payroll-panel{margin-bottom:16px}
+.payroll-panel .panel-head{align-items:center}
+.payroll-panel-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.payroll-count{padding:5px 9px;border-radius:999px;background:rgba(233,196,202,.1);border:1px solid var(--line);color:var(--sakura,#e9c4ca);font-size:11px;font-weight:700}
+.payroll-status{margin:0 0 16px;padding:12px 14px;border-radius:10px;font-size:13px;line-height:1.5}
+.payroll-status.info{background:rgba(233,196,202,.08);border:1px solid var(--line);color:var(--ink)}
+.payroll-status.loading{background:rgba(216,178,125,.1);border:1px solid rgba(216,178,125,.35);color:var(--amber,#d8b27d)}
+.payroll-status.error{background:rgba(217,151,158,.1);border:1px solid rgba(217,151,158,.42);color:var(--red,#d9979e)}
+.payroll-table-wrap{overflow:auto}
+.payroll-table{width:100%;min-width:720px;border-collapse:collapse}
+.payroll-table th{padding:12px 16px;text-align:left;color:var(--muted);font-size:11px;letter-spacing:.04em;border-bottom:1px solid var(--line);background:rgba(255,255,255,.025)}
+.payroll-table td{padding:13px 16px;border-bottom:1px solid var(--line);font-size:14px;color:var(--ink)}
+.payroll-table tbody tr:last-child td{border-bottom:0}
+.payroll-table tbody tr:hover{background:rgba(255,255,255,.025)}
+.payroll-name{display:block;color:var(--ink);font-size:15px;font-weight:700}
+.payroll-status-tag{display:inline-block;margin-top:4px;color:var(--muted);font-size:11px}
+.payroll-number,.payroll-money{font-variant-numeric:tabular-nums}
+.payroll-total strong{display:block;font-size:15px;color:var(--sakura,#e9c4ca)}
+.payroll-total small{display:block;margin-top:4px;color:var(--muted);font-size:11px}
+.payroll-money.positive{color:var(--green,#a8c7b2)}
+.payroll-money.negative{color:var(--red,#d9979e)}
+.payroll-empty{padding:25px 18px;text-align:center;color:var(--muted);white-space:normal;line-height:1.5}
+.payroll-empty b{display:block;margin-bottom:5px;color:var(--ink);font-size:14px}
+.payroll-note{margin:10px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
+@media(max-width:760px){.payroll-table{min-width:650px}.payroll-toolbar{width:100%}.payroll-toolbar input{width:100%}.payroll-head{display:block}.payroll-toolbar{margin-top:14px}}
