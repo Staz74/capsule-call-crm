@@ -43,12 +43,22 @@
     else if (signatureHeader) signatureHeader.after(header);
     else row.append(header);
   }
+  function ensureNextRankHeader(host) {
+    const row = host.closest("table")?.querySelector("thead tr") || host.closest("table")?.querySelector("tr");
+    if (!row || row.querySelector("[data-payroll-next-rank-header]")) return;
+    const header = document.createElement("th");
+    header.dataset.payrollNextRankHeader = "true";
+    header.scope = "col";
+    header.textContent = "Salaire au prochain palier";
+    header.title = "Estimation au coefficient du palier suivant, avec les mêmes bonus et malus";
+    row.append(header);
+  }
   function renderTable(rows, isSalary) {
     const bodyId = isSalary ? "payrollAutonomousRows" : "payrollBeginnerRows";
     const host = $(bodyId);
     if (!host) return;
-    if (isSalary) ensureConversionHeader(host);
-    const emptyCols = isSalary ? 7 : 3;
+    if (isSalary) { ensureConversionHeader(host); ensureNextRankHeader(host); }
+    const emptyCols = isSalary ? 8 : 3;
     if (!rows.length) {
       host.innerHTML = '<tr><td colspan="' + emptyCols + '"><div class="payroll-empty"><b>Aucun collaborateur ' + (isSalary ? "autonome" : "débutant") + ' actif</b>Les fiches concernées apparaîtront ici.</div></td></tr>';
       return;
@@ -59,7 +69,10 @@
         : "";
       const name = '<span class="payroll-name">' + escapeHtml(row.name || "Collaboratrice") + '</span><small class="payroll-status-tag">' + (isSalary ? "Autonome" : "Débutante") + '</small>';
       const conversion = isSalary ? '<td class="payroll-number">' + conversionCell(row.signatures, row.appointments) + '</td>' : "";
-      return '<tr><td>' + name + '</td><td class="payroll-number">' + count(row.appointments) + '</td><td class="payroll-number">' + count(row.signatures) + '</td>' + conversion + salaryCell + '</tr>';
+      const nextRankCell = !isSalary ? "" : row.nextRankSalary != null && row.nextRankName
+        ? '<td class="payroll-next-salary"><strong>' + amount(row.nextRankSalary) + '</strong><small>Palier ' + escapeHtml(row.nextRankName) + ' · × ' + Number(row.nextRankCoefficient).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + '</small></td>'
+        : '<td class="payroll-next-salary"><span>' + (row.rankName === "CHALLENGER" ? "Palier maximum atteint" : "À calculer") + '</span>' + (row.rankName ? '<small>Rang actuel : ' + escapeHtml(row.rankName) + '</small>' : "") + '</td>';
+      return '<tr><td>' + name + '</td><td class="payroll-number">' + count(row.appointments) + '</td><td class="payroll-number">' + count(row.signatures) + '</td>' + conversion + salaryCell + nextRankCell + '</tr>';
     });
     if (isSalary) {
       const totalAppointments = sumAvailable(rows, "appointments");
@@ -69,7 +82,7 @@
       const totalSalary = sumAvailable(rows, "salary");
       const partial = ["appointments", "signatures", "salary"].some(key => rows.some(row => row[key] == null));
       const totalName = '<span class="payroll-name">Total autonomes (' + rows.length + ')</span><small class="payroll-status-tag">' + (partial ? "Somme des données disponibles" : "Période complète") + '</small>';
-      bodyRows.push('<tr class="payroll-summary-row"><td>' + totalName + '</td><td class="payroll-number">' + count(totalAppointments) + '</td><td class="payroll-number">' + count(totalSignatures) + '</td><td class="payroll-number">' + conversionCell(totalSignatures, totalAppointments) + '</td><td class="payroll-money positive">' + amount(totalBonus) + '</td><td class="payroll-money negative">' + amount(totalMalus) + '</td><td class="payroll-total"><strong>' + amount(totalSalary) + '</strong><small>Total calculé</small></td></tr>');
+      bodyRows.push('<tr class="payroll-summary-row"><td>' + totalName + '</td><td class="payroll-number">' + count(totalAppointments) + '</td><td class="payroll-number">' + count(totalSignatures) + '</td><td class="payroll-number">' + conversionCell(totalSignatures, totalAppointments) + '</td><td class="payroll-money positive">' + amount(totalBonus) + '</td><td class="payroll-money negative">' + amount(totalMalus) + '</td><td class="payroll-total"><strong>' + amount(totalSalary) + '</strong><small>Total calculé</small></td><td class="payroll-next-salary"><span>—</span><small>Projection individuelle</small></td></tr>');
     }
     host.innerHTML = bodyRows.join("");
   }
@@ -134,7 +147,7 @@
     setMessage("Chargement des données…", "loading");
     const host = $("payrollAutonomousRows");
     const beginnerHost = $("payrollBeginnerRows");
-    if (host) host.innerHTML = '<tr><td colspan="7"><div class="payroll-empty">Chargement…</div></td></tr>';
+    if (host) host.innerHTML = '<tr><td colspan="8"><div class="payroll-empty">Chargement…</div></td></tr>';
     if (beginnerHost) beginnerHost.innerHTML = '<tr><td colspan="3"><div class="payroll-empty">Chargement…</div></td></tr>';
     try {
       if (!window.crmSupabase?.functions) throw new Error("La connexion au CRM n’est pas prête. Réessaie dans quelques instants.");
@@ -147,7 +160,7 @@
       if (currentRequest !== requestId) return;
       const message = String(error?.message || error || "Erreur inconnue");
       setMessage(message, "error");
-      if (host) host.innerHTML = '<tr><td colspan="7"><div class="payroll-empty">Les données ne sont pas disponibles.</div></td></tr>';
+      if (host) host.innerHTML = '<tr><td colspan="8"><div class="payroll-empty">Les données ne sont pas disponibles.</div></td></tr>';
       if (beginnerHost) beginnerHost.innerHTML = '<tr><td colspan="3"><div class="payroll-empty">Les données ne sont pas disponibles.</div></td></tr>';
     }
   }
