@@ -55,6 +55,45 @@ const rankFor = (signatures: number) => ranks.slice().reverse().find(rank => sig
 const dateAliases = ["date", "jour", "date_activite", "created_at"];
 const loginAliases = ["premiere_connexion", "first_login", "heure_premiere_connexion", "h_1ere_co", "first_connection"];
 
+function summarizeFormerEmployee(employee: Record<string, any>, rows: any[], month: string) {
+  const monthStart = month + "-01";
+  const lastDay = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const names = new Set([employee.name, employee.brokerlinkAccountName, employee.brokerlinkId].filter(Boolean).map(normalize));
+  const emails = new Set([employee.brokerlinkEmail, employee.brokerlink_email, employee.email_brokerlink].filter(Boolean).map((value: unknown) => String(value).trim().toLowerCase()));
+  const matchedRows = rows.filter(row => {
+    const email = field(row, ["brokerlink_email", "email_brokerlink", "agent_email", "caller_email", "user_email", "email", "courriel", "mail"]);
+    if (email) return emails.has(String(email).trim().toLowerCase());
+    const label = field(row, ["collaborateur", "employee", "nom", "nom_complet", "collaborateur_nom", "employee_name", "telephoniste", "caller", "brokerlink_id", "id_brokerlink", "name"]);
+    return Boolean(label && names.has(normalize(label)));
+  }).filter(row => {
+    const date = dateOf(field(row, dateAliases));
+    return date >= monthStart && date <= lastDay;
+  });
+
+  let appointments = 0, signatures = 0, hasAppointmentData = false, hasSignatureData = false;
+  for (const row of matchedRows) {
+    const rdv = numeric(field(row, appointmentAliases));
+    const signed = numeric(field(row, openingAliases));
+    if (rdv !== null) {
+      hasAppointmentData = true;
+      appointments += rdv;
+    }
+    if (signed !== null) {
+      hasSignatureData = true;
+      signatures += signed;
+    }
+  }
+
+  return {
+    employeeId: employee.id,
+    name: String(employee.name || ""),
+    departureDate: dateOf(employee.archivedAt),
+    appointments: hasAppointmentData ? appointments : null,
+    signatures: hasSignatureData ? signatures : null,
+    hasKpiData: hasAppointmentData || hasSignatureData
+  };
+}
+
 function summarizeEmployee(employee: Record<string, any>, rows: any[], attendance: Record<string, any>, salaryRules: Record<string, any>, month: string, todayDate: string) {
   const monthStart = month + "-01";
   const lastDay = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
@@ -230,7 +269,7 @@ Deno.serve(async (request: Request) => {
     const month = typeof body.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(body.month) ? body.month : currentMonth();
     const todayDate = today();
     const { data: baseRows, error: baseError } = await admin.from("crm_state")
-      .select("state_key,payload").in("state_key", ["employees", "kpiRows", "controlRules"]);
+      .select("state_key,payload").in("state_key", ["employees", "archivedEmployees", "kpiRows", "controlRules"]);
     if (baseError) throw baseError;
     const state = Object.fromEntries((baseRows || []).map((row: any) => [row.state_key, row.payload]));
     const allEmployees = Array.isArray(state.employees) ? state.employees : [];
@@ -239,6 +278,17 @@ Deno.serve(async (request: Request) => {
       const status = normalize(employee.status);
       return status === "autonome" || status === "debutant";
     });
+    const activeEmployeeIds = new Set(allEmployees.map((employee: any) => String(employee?.id ?? "")));
+    const archivedEmployees = Array.isArray(state.archivedEmployees) ? state.archivedEmployees : [];
+    const monthStart = month + "-01";
+    const lastDay = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+    const formerEligible = archivedEmployees.filter((employee: any) => {
+      const departureDate = dateOf(employee?.archivedAt);
+      return employee && departureDate >= monthStart && departureDate <= lastDay && !activeEmployeeIds.has(String(employee.id ?? ""));
+    });
+    const rows = Array.isArray(state.kpiRows) ? state.kpiRows : [];
+    const formerEntries = formerEligible.map((employee: any) => summarizeFormerEmployee(employee, rows, month))
+      .sort((a: any, b: any) => a.name.localeCompare(b.name, "fr"));
     const attendanceKeys = eligible.map((employee: any) => "local:cc_attendance_" + employee.id);
     let attendanceRows: any[] = [];
     if (attendanceKeys.length) {
@@ -248,14 +298,13 @@ Deno.serve(async (request: Request) => {
     }
     const attendanceByKey = new Map(attendanceRows.map(row => [row.state_key, row.payload]));
     const salaryRules = state.controlRules?.salary && typeof state.controlRules.salary === "object" ? state.controlRules.salary : {};
-    const rows = Array.isArray(state.kpiRows) ? state.kpiRows : [];
     const entries = eligible.map((employee: any) => {
       const key = "local:cc_attendance_" + employee.id;
       const attendance = attendanceByKey.get(key);
       const status = normalize(employee.status);
       return summarizeEmployee(employee, rows, attendance && typeof attendance === "object" ? attendance : {}, salaryRules, month, todayDate);
     }).sort((a: any, b: any) => a.name.localeCompare(b.name, "fr"));
-    return json({ month, entries, updatedAt: new Date().toISOString() });
+    return json({ month, entries, formerEntries, updatedAt: new Date().toISOString() });
   } catch (error) {
     console.error("payroll-overview:", error);
     return json({ error: "Impossible de charger le tableau de gestion des salaires." }, 500);
