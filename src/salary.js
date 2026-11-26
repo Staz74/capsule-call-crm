@@ -86,12 +86,22 @@
     return '<b>Bonus rendez-vous</b><br>+'+amount(config.rdvBonusPerExtra)+' par rendez-vous au-delà de l’objectif ('+config.rdvTarget+' / jour)<br><b>Malus rendez-vous · objectif '+config.rdvTarget+' / jour</b><br>2 RDV : −'+amount(config.rdv2)+' · 1 RDV : −'+amount(config.rdv1)+' · 0 RDV : −'+amount(config.rdv0)+'<br><b>Retards</b><br>0–10 min : −'+amount(config.lateGreen)+' · 11–30 min : −'+amount(config.lateOrange)+' · +30 min : −'+amount(config.lateRed)+'<br><b>Absences</b><br>Demi-journée : −'+amount(config.absenceHalf)+' · Journée : −'+amount(config.absenceFull);
   }
   function renderPay(data){
-    const estimate=data.salaryAfterMaluses??data.baseSalary;
-    const estimateLabel=data.hasKpiData?"Base "+amount(data.baseSalary)+" · + "+amount(data.totalBonuses)+" de bonus · − "+amount(data.totalDeductions)+" de malus":"Base "+amount(data.baseSalary)+" · en attente des données KPI";
-    const prorataNote=data.isNovember2026Prorata?'<div class="salary-proration-note" style="margin-top:12px;color:#e6cbd3;font-size:.88rem;line-height:1.5">Prorata de novembre 2026 · calcul à partir du 10 novembre (démarrage commun du suivi). À partir de décembre : base mensuelle complète de '+amount(data.fullMonthBaseSalary)+'.</div>':"";
-    const current=data.currentRankEstimate==null?"—":amount(data.currentRankEstimate);
-    const next=data.nextRankEstimate==null?"—":amount(data.nextRankEstimate);
-    return '<div class="salary-pay-label">Salaire du mois après bonus et malus (en temps réel)</div><div class="salary-pay-value serif">'+amount(estimate)+'</div><div class="salary-pay-meta">'+estimateLabel+'</div>'+prorataNote+'<div class="salary-estimates"><div><span>Estimation avec ton rang actuel'+(data.rank?' ('+esc(capitalize(data.rank.name))+' × '+data.rank.coefficient+')':'')+'</span><b class="serif">'+current+'</b></div><div class="next-estimate"><span>Si tu passes '+(data.nextRank?esc(capitalize(data.nextRank.name)):"au rang suivant")+(data.nextRank?' (× '+data.nextRank.coefficient+')':'')+'</span><b class="serif">'+next+'</b></div></div>';
+    const adjustedBase=data.salaryAfterMaluses??data.baseSalary??null;
+    const currentSalary=data.currentRankEstimate;
+    const salaryLabel=currentSalary==null?"En attente des données de rang":amount(currentSalary);
+    const bonus=Number(data.totalBonuses)||0,malus=Number(data.totalDeductions)||0;
+    const coefficient=data.rank?.coefficient;
+    const rankName=data.rank?.name||"Rang en attente";
+    const prorataNote=data.isNovember2026Prorata?'<div class="salary-proration-note">Base de novembre au prorata à partir du 10 novembre. Dès le mois suivant, la base mensuelle complète sera de '+amount(data.fullMonthBaseSalary)+'.</div>':"";
+    const baseAdjustments='<div class="salary-calc-base"><div><span>Base du mois</span><b>'+amount(data.baseSalary)+'</b></div><i>+</i><div><span>Bonus</span><b class="bonus">'+amount(bonus)+'</b></div><i>−</i><div><span>Malus</span><b class="malus">'+amount(malus)+'</b></div><i>=</i><div class="adjusted"><span>Base après bonus et malus</span><b>'+amount(adjustedBase)+'</b></div></div>';
+    const equation=coefficient==null||currentSalary==null?'<div class="salary-calc-equation waiting">Base ajustée × coefficient du rang = salaire estimé</div>':'<div class="salary-calc-equation"><span>'+amount(adjustedBase)+'</span><b>× '+Number(coefficient).toLocaleString("fr-FR",{minimumFractionDigits:2})+' · '+esc(rankName)+'</b><b class="equals">= '+amount(currentSalary)+'</b></div>';
+    const ranks=tiers.slice().reverse().map(tier=>{
+      const current=tier.name===data.rank?.name,next=tier.name===data.nextRank?.name;
+      const estimate=adjustedBase==null?"—":amount(Math.round(Number(adjustedBase)*tier.coefficient));
+      return '<div class="salary-rank-compare '+(current?"current ":"")+(next?"next":"")+'"><b>'+esc(tier.name)+'</b><strong>'+estimate+'</strong><small>× '+Number(tier.coefficient).toLocaleString("fr-FR",{minimumFractionDigits:2})+'</small>'+(current?'<em>Ton palier</em>':next?'<em>Palier suivant</em>':"")+'</div>';
+    }).join("");
+    const nextMessage=data.nextRank?'<div class="salary-next-explainer">Il te reste <b>'+Number(data.openingsRemaining||0)+' ouverture'+(Number(data.openingsRemaining)===1?'':'s')+'</b> pour atteindre <b>'+esc(data.nextRank.name)+'</b>. À base ajustée identique, ton estimation serait de <b>'+amount(data.nextRankEstimate)+'</b>.</div>':data.rank?'<div class="salary-next-explainer">Tu as atteint le rang maximum.</div>':'<div class="salary-next-explainer">Ton rang sera calculé dès réception des signatures confirmées.</div>';
+    return '<div class="salary-pay-label">Ton salaire estimé après calcul</div><div class="salary-pay-value serif">'+salaryLabel+'</div><div class="salary-pay-meta">Ce montant inclut déjà le coefficient de ton rang, les bonus et les malus.</div>'+prorataNote+'<section class="salary-calc-block"><div class="salary-calc-title">La règle qui calcule ton salaire</div>'+baseAdjustments+equation+'<p>Base après bonus et malus × coefficient de ton rang = salaire estimé</p></section><section class="salary-rank-comparison"><div class="salary-rank-comparison-head"><b>Ce que donne chaque palier</b><span>Même base ajustée : '+amount(adjustedBase)+'</span></div><div class="salary-rank-compare-grid">'+ranks+'</div>'+nextMessage+'</section>';
   }
   const capitalize=value=>String(value||"").toLowerCase().replace(/^./,s=>s.toUpperCase());
   function renderBonuses(data){
