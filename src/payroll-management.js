@@ -53,12 +53,24 @@
     header.title = "Estimation au coefficient du palier suivant, avec les mêmes bonus et malus";
     row.append(header);
   }
+  function ensureBeginnerHeaders(host) {
+    const table = host.closest("table");
+    const row = table?.querySelector("thead tr") || table?.querySelector("tr");
+    if (!row) return;
+    table.classList.add("payroll-beginner-table");
+    if (row.dataset.payrollBeginnerHeaders === "true") return;
+    row.replaceChildren(...["Collaboratrice", "Débutante depuis", "Appels passés", "Rendez-vous pris", "Conversion appels → RDV", "Signatures confirmées"].map(label => {
+      const cell = document.createElement("th"); cell.scope = "col"; cell.textContent = label; return cell;
+    }));
+    row.dataset.payrollBeginnerHeaders = "true";
+  }
   function renderTable(rows, isSalary) {
     const bodyId = isSalary ? "payrollAutonomousRows" : "payrollBeginnerRows";
     const host = $(bodyId);
     if (!host) return;
     if (isSalary) { ensureConversionHeader(host); ensureNextRankHeader(host); }
-    const emptyCols = isSalary ? 8 : 3;
+    else ensureBeginnerHeaders(host);
+    const emptyCols = isSalary ? 8 : 6;
     if (!rows.length) {
       host.innerHTML = '<tr><td colspan="' + emptyCols + '"><div class="payroll-empty"><b>Aucun collaborateur ' + (isSalary ? "autonome" : "débutant") + ' actif</b>Les fiches concernées apparaîtront ici.</div></td></tr>';
       return;
@@ -72,7 +84,8 @@
       const nextRankCell = !isSalary ? "" : row.nextRankSalary != null && row.nextRankName
         ? '<td class="payroll-next-salary"><strong>' + amount(row.nextRankSalary) + '</strong><small>Palier ' + escapeHtml(row.nextRankName) + ' · × ' + Number(row.nextRankCoefficient).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + '</small></td>'
         : '<td class="payroll-next-salary"><span>' + (row.rankName === "CHALLENGER" ? "Palier maximum atteint" : "À calculer") + '</span>' + (row.rankName ? '<small>Rang actuel : ' + escapeHtml(row.rankName) + '</small>' : "") + '</td>';
-      return '<tr><td>' + name + '</td><td class="payroll-number">' + count(row.appointments) + '</td><td class="payroll-number">' + count(row.signatures) + '</td>' + conversion + salaryCell + nextRankCell + '</tr>';
+      const beginnerCells = isSalary ? "" : '<td class="payroll-entry-date">' + (row.beginnerSince ? new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric" }).format(new Date(String(row.beginnerSince).slice(0, 10) + "T12:00:00")) : "À renseigner") + '</td><td class="payroll-number">' + count(row.callsMade) + '</td><td class="payroll-number">' + count(row.appointments) + '</td><td class="payroll-number">' + conversionCell(row.appointments, row.callsMade) + '</td><td class="payroll-number">' + count(row.signatures) + '</td>';
+      return '<tr><td>' + name + '</td>' + (isSalary ? '<td class="payroll-number">' + count(row.appointments) + '</td><td class="payroll-number">' + count(row.signatures) + '</td>' + conversion + salaryCell + nextRankCell : beginnerCells) + '</tr>';
     });
     if (isSalary) {
       const totalAppointments = sumAvailable(rows, "appointments");
@@ -148,7 +161,7 @@
     const host = $("payrollAutonomousRows");
     const beginnerHost = $("payrollBeginnerRows");
     if (host) host.innerHTML = '<tr><td colspan="8"><div class="payroll-empty">Chargement…</div></td></tr>';
-    if (beginnerHost) beginnerHost.innerHTML = '<tr><td colspan="3"><div class="payroll-empty">Chargement…</div></td></tr>';
+    if (beginnerHost) beginnerHost.innerHTML = '<tr><td colspan="6"><div class="payroll-empty">Chargement…</div></td></tr>';
     try {
       if (!window.crmSupabase?.functions) throw new Error("La connexion au CRM n’est pas prête. Réessaie dans quelques instants.");
       const { data, error } = await window.crmSupabase.functions.invoke("payroll-overview", { body: { month } });
@@ -161,7 +174,7 @@
       const message = String(error?.message || error || "Erreur inconnue");
       setMessage(message, "error");
       if (host) host.innerHTML = '<tr><td colspan="8"><div class="payroll-empty">Les données ne sont pas disponibles.</div></td></tr>';
-      if (beginnerHost) beginnerHost.innerHTML = '<tr><td colspan="3"><div class="payroll-empty">Les données ne sont pas disponibles.</div></td></tr>';
+      if (beginnerHost) beginnerHost.innerHTML = '<tr><td colspan="6"><div class="payroll-empty">Les données ne sont pas disponibles.</div></td></tr>';
     }
   }
   window.crmRenderPayrollModule = () => {
