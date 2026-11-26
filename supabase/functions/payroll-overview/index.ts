@@ -43,6 +43,7 @@ const money = (value: unknown, fallback = 0) => {
 };
 const dateLabel = (date: string) => new Date(date + "T12:00:00Z").toLocaleDateString("fr-FR", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
 const appointmentAliases = ["rdv_pris", "rendez_vous", "appointments", "appointment_count"];
+const callAliases = ["appels", "calls", "nb_appels", "nb_call", "total_calls", "sortants", "appels_passes"];
 const openingAliases = ["ouverture_validee", "ouvertures_validees", "ouverture_confirmee", "ouvertures_confirmees", "signature_confirmee", "signatures_confirmees", "signatures_validees", "ouvertures_lpp", "signatures_lca", "confirmed_signatures", "validated_signatures", "signed_accounts", "signatures", "openings", "validated_openings"];
 const ranks = [
   { name: "IRON", min: 0, coefficient: 0.25 },
@@ -70,10 +71,12 @@ function summarizeFormerEmployee(employee: Record<string, any>, rows: any[], mon
     return date >= monthStart && date <= lastDay;
   });
 
-  let appointments = 0, signatures = 0, hasAppointmentData = false, hasSignatureData = false;
+  let callsMade = 0, appointments = 0, signatures = 0, hasCallData = false, hasAppointmentData = false, hasSignatureData = false;
   for (const row of matchedRows) {
+    const calls = numeric(field(row, callAliases));
     const rdv = numeric(field(row, appointmentAliases));
     const signed = numeric(field(row, openingAliases));
+    if (calls !== null) { hasCallData = true; callsMade += calls; }
     if (rdv !== null) {
       hasAppointmentData = true;
       appointments += rdv;
@@ -94,7 +97,7 @@ function summarizeFormerEmployee(employee: Record<string, any>, rows: any[], mon
   };
 }
 
-function summarizeEmployee(employee: Record<string, any>, rows: any[], attendance: Record<string, any>, salaryRules: Record<string, any>, month: string, todayDate: string) {
+function summarizeEmployee(employee: Record<string, any>, rows: any[], attendance: Record<string, any>, salaryRules: Record<string, any>, onboardingHistory: Record<string, any>, month: string, todayDate: string) {
   const monthStart = month + "-01";
   const lastDay = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const malusStart = month === "2026-11" ? "2026-11-10" : monthStart;
@@ -224,10 +227,15 @@ function summarizeEmployee(employee: Record<string, any>, rows: any[], attendanc
   const calculatedSalary = currentRank ? Math.round(salaryBeforeRank * currentRank.coefficient) : null;
   const nextRankSalary = nextRank ? Math.round(salaryBeforeRank * nextRank.coefficient) : null;
   const employeeStatus = normalize(employee.status);
+  const onboardingEntries = Array.isArray(onboardingHistory?.[String(employee.id)]) ? onboardingHistory[String(employee.id)] : [];
+  const productionEntry = onboardingEntries.find((entry: any) => normalize(Array.isArray(entry) ? entry[1] : entry?.title || entry?.label).includes("entree en production"));
+  const beginnerSince = dateOf(employee.beginnerSince || employee.productionStartedAt || employee.statusChangedAt || (Array.isArray(productionEntry) ? productionEntry[0] : productionEntry?.date || productionEntry?.createdAt));
   return {
     employeeId: employee.id,
     name: String(employee.name || ""),
     status: employeeStatus === "autonome" ? "autonome" : "debutant",
+    beginnerSince: beginnerSince || null,
+    callsMade: hasCallData ? callsMade : null,
     appointments: hasAppointmentData ? appointments : null,
     signatures: hasSignatureData ? signatures : null,
     bonus: totalBonuses,
@@ -275,7 +283,7 @@ Deno.serve(async (request: Request) => {
     const month = typeof body.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(body.month) ? body.month : currentMonth();
     const todayDate = today();
     const { data: baseRows, error: baseError } = await admin.from("crm_state")
-      .select("state_key,payload").in("state_key", ["employees", "archivedEmployees", "kpiRows", "controlRules"]);
+      .select("state_key,payload").in("state_key", ["employees", "archivedEmployees", "kpiRows", "controlRules", "onboardingHistory"]);
     if (baseError) throw baseError;
     const state = Object.fromEntries((baseRows || []).map((row: any) => [row.state_key, row.payload]));
     const allEmployees = Array.isArray(state.employees) ? state.employees : [];
@@ -308,7 +316,7 @@ Deno.serve(async (request: Request) => {
       const key = "local:cc_attendance_" + employee.id;
       const attendance = attendanceByKey.get(key);
       const status = normalize(employee.status);
-      return summarizeEmployee(employee, rows, attendance && typeof attendance === "object" ? attendance : {}, salaryRules, month, todayDate);
+      return summarizeEmployee(employee, rows, attendance && typeof attendance === "object" ? attendance : {}, salaryRules, state.onboardingHistory && typeof state.onboardingHistory === "object" ? state.onboardingHistory : {}, month, todayDate);
     }).sort((a: any, b: any) => a.name.localeCompare(b.name, "fr"));
     return json({ month, entries, formerEntries, updatedAt: new Date().toISOString() });
   } catch (error) {
